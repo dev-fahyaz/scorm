@@ -5,7 +5,7 @@
 # Auto-merge policy: the root npm devDependencies carry the "automerge" label;
 # .github/workflows/dependabot-auto-merge.yml enables GitHub auto-merge for
 # patch/minor bumps once the required "Build & Unit Tests" check passes. Major
-# bumps, docs-site, and github-actions updates are deliberately left for manual
+# bumps and github-actions updates are deliberately left for manual
 # review (no "automerge" label). The published package has zero runtime
 # dependencies, so the only supply-chain surface is the build/release pipeline,
 # which stays human-gated at release time. The cooldown windows give the
@@ -38,31 +38,6 @@ updates:
       # All root deps are devDependencies, so this batches every non-major
       # bump into one PR. Majors stay individual for manual review.
       dev-dependencies:
-        patterns:
-          - "*"
-        update-types:
-          - "minor"
-          - "patch"
-
-  # Docs site build tooling. Auto-merged like the root deps: the "CI Gate" check
-  # runs the VitePress build (docs-build job) on docs-site PRs, so patch/minor
-  # bumps merge automatically once that build is green.
-  - package-ecosystem: "npm"
-    directory: "/docs-site"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 5
-    labels:
-      - "dependencies"
-      - "automerge"
-    cooldown:
-      default-days: 5
-      semver-major-days: 7
-      semver-minor-days: 5
-      semver-patch-days: 3
-    groups:
-      docs-site:
         patterns:
           - "*"
         update-types:

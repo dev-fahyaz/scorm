@@ -82,7 +82,7 @@ for (const path of files(join(root, "src")).filter((path) => path.endsWith(".ts"
 type Block = { file: string; text: string; line: number };
 const blocks: Block[] = [];
 for (const path of [
-  ...files(join(root, "docs-site/docs")).filter((path) => /\.md$/i.test(path)),
+  ...files(join(root, "docs")).filter((path) => /\.md$/i.test(path)),
   join(root, "README.md"),
 ]) {
   const lines = readFileSync(path, "utf8").split("\n");

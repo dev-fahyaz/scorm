@@ -319,7 +319,7 @@ val origin = "http://127.0.0.1:${server.listeningPort}"
 - Better compatibility with complex SCORM packages
 - Easier debugging (can test URLs in browser)
 
-See the `examples/react-native-offline` directory for a complete implementation using `@dr.pogodin/react-native-static-server`.
+Serve the extracted package from a local HTTP server on the same origin as the player.
 
 ### 3c. Alerts and Confirmations Not Showing
 
@@ -589,7 +589,7 @@ describe('Offline SCORM', () => {
     localStorage.clear();
 
     // Initialize API
-    window.API = new Scorm2004API({
+    window.API_1484_11 = new Scorm2004API({
       enableOfflineSupport: true,
       courseId: 'test-course'
     });
@@ -600,8 +600,8 @@ describe('Offline SCORM', () => {
     simulateOffline();
 
     // Set SCORM data
-    window.API.SetValue('cmi.completion_status', 'completed');
-    window.API.Commit('');
+    window.API_1484_11.SetValue('cmi.completion_status', 'completed');
+    window.API_1484_11.Commit('');
 
     // Check localStorage
     const offlineKeys = Object.keys(localStorage)
@@ -620,7 +620,7 @@ describe('Offline SCORM', () => {
     simulateOnline();
 
     // Wait for sync
-    await window.API._offlineStorageService.syncOfflineData();
+    await window.API_1484_11._offlineStorageService.syncOfflineData();
 
     // Check that offline data was cleared
     expect(localStorage.getItem('scorm_offline_test')).toBeNull();

@@ -19,6 +19,10 @@ A modern, fully-tested JavaScript runtime for SCORM 1.2 and SCORM 2004.
 
 This project provides a stable, tested platform for running SCORM 1.2 and SCORM 2004 modules. It is designed to be LMS-agnostic and can run without a backing LMS, logging all function calls and data instead of committing if an LMS endpoint is not configured.
 
+## Aspire TSS player
+
+`npm run player` installs the local player and serves it at <http://localhost:4173>. Upload a SCORM 1.2 or 2004 ZIP, or open the included sample lesson. The player serves the package on the same origin, exposes scorm-again to the course, and stores completion, score, time, and the resume point.
+
 ### Key Features in v3.0.0
 
 - **SCORM-compliant synchronous commits** - Commits now block and return actual LMS success/failure
@@ -182,12 +186,6 @@ our [offline support documentation](https://jcputney.github.io/scorm-again/docs/
 
 ### LMS Integration Documentation
 
-- **[Player Wrapper Integration Guide](https://jcputney.github.io/scorm-again/docs/lms-integration/player-wrapper-guide)** - Build custom SCORM player UIs
-  - Event-driven UI updates
-  - SCORM 1.2, 2004 simple, and sequenced player implementations
-  - React, Vue, and Angular integration examples
-  - Event to UI mapping reference
-  - Troubleshooting guide
 - **[LMS Integration Guide](https://jcputney.github.io/scorm-again/docs/lms-integration/integration-guide)** - Core LMS integration concepts
 - [API Events Reference](https://jcputney.github.io/scorm-again/docs/lms-integration/api-events-reference) - Complete event system documentation
 - [SCORM 1.2 Multi-SCO Guide](https://jcputney.github.io/scorm-again/docs/lms-integration/multi-sco-support) - Multi-SCO utilities

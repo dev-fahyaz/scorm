@@ -26,7 +26,7 @@ reviews:
       instructions: Adds a feature, or changes public behavior, settings, or events on purpose.
     - label: documentation
       instructions: >-
-        Changes documentation (docs-site, docs, README, or other Markdown) without changing
+        Changes documentation (docs, README, or other Markdown) without changing
         library code.
     - label: dependencies
       instructions: Changes dependency versions in package.json or a package-lock.json.
@@ -120,10 +120,6 @@ reviews:
         that only makes a failing test pass needs a strong reason. Removing a
         `knownDivergence` pin is correct when the same pull request fixes that divergence in
         `src/`. A new pin needs a matching finding in `test/conformance/adl/README.md`.
-    - path: "docs-site/**"
-      instructions: |
-        VitePress documentation site. Check that examples, settings, defaults, and event names
-        match the library code.
     - path: ".github/workflows/**"
       instructions: |
         - The master ruleset requires only the `CI Gate` check, which aggregates the other
@@ -157,4 +153,3 @@ knowledge_base:
       - "AGENTS.md"
       - "CONTRIBUTING.md"
       - "typescript_guidelines.md"
-      - "docs-site/docs/developer/contributing.md"

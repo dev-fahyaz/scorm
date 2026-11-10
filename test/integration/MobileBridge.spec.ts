@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 // CI downloads dist from the build job before running integration tests.
 const bundle = readFileSync(new URL("../../dist/scorm-again.js", import.meta.url), "utf8");
 const bridge = readFileSync(
-  new URL("../../docs-site/examples/mobile-bridge.js", import.meta.url),
+  new URL("../fixtures/mobile-bridge.js", import.meta.url),
   "utf8",
 );
 

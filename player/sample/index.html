@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Recognising a phishing attempt</title>
+  <style>
+    :root { color-scheme: light; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "Avenir Next", sans-serif;
+      color: #1c2430;
+      background: #f7f4ef;
+    }
+    main { max-width: 760px; margin: 0 auto; padding: 32px 24px 64px; }
+    h1 { font-size: 32px; line-height: 1.15; margin: 0 0 8px; }
+    p { line-height: 1.5; }
+    .stage {
+      margin-top: 24px;
+      background: #17212b;
+      color: white;
+      border-radius: 18px;
+      overflow: hidden;
+    }
+    .picture {
+      height: 280px;
+      display: grid;
+      place-items: center;
+      background:
+        radial-gradient(circle at 20% 20%, rgba(255,255,255,.16), transparent 28%),
+        linear-gradient(160deg, #0f6e6b, #17324d 70%);
+    }
+    .picture strong { font-size: 64px; letter-spacing: -0.04em; }
+    .controls { display: flex; gap: 12px; align-items: center; padding: 14px 16px; }
+    button, input[type="range"] { font: inherit; }
+    button {
+      border: 0;
+      border-radius: 999px;
+      padding: 8px 14px;
+      background: white;
+      color: #17212b;
+      cursor: pointer;
+    }
+    input[type="range"] { flex: 1; }
+    .quiz { margin-top: 28px; display: grid; gap: 16px; }
+    .quiz[hidden] { display: none; }
+    .question { background: white; border-radius: 16px; padding: 16px 18px; }
+    .question button { margin: 8px 8px 0 0; background: #e7f3f2; }
+    .question button[aria-pressed="true"] { background: #0f6e6b; color: white; }
+    .note { color: #5c6b7a; }
+  </style>
+</head>
+<body>
+  <main>
+    <p class="note" id="position">Starting lesson</p>
+    <h1>Recognising a phishing attempt</h1>
+    <p>Watch the short briefing, then answer the two checks. Closing the lesson keeps your place.</p>
+    <section class="stage" aria-label="Lesson video">
+      <div class="picture"><strong id="clock">0:00</strong></div>
+      <div class="controls">
+        <button id="play" type="button">Play</button>
+        <input id="seek" type="range" min="0" max="60" value="0" aria-label="Lesson position">
+        <span id="duration">1:00</span>
+      </div>
+    </section>
+    <section class="quiz" id="quiz" hidden>
+      <article class="question">
+        <h2>Which request is safe to ignore?</h2>
+        <button type="button" data-question="1" data-correct="false">A link that asks you to reset a password you did not request</button>
+        <button type="button" data-question="1" data-correct="true">A message from your own training portal, opened from the library</button>
+      </article>
+      <article class="question">
+        <h2>What should you do with an unexpected attachment?</h2>
+        <button type="button" data-question="2" data-correct="true">Report it and leave it unopened</button>
+        <button type="button" data-question="2" data-correct="false">Open it if the sender name looks familiar</button>
+      </article>
+    </section>
+  </main>
+  <script>
+    const DURATION = 60;
+    const api = findAPI(window);
+    const playButton = document.querySelector("#play");
+    const seek = document.querySelector("#seek");
+    const clock = document.querySelector("#clock");
+    const position = document.querySelector("#position");
+    const quiz = document.querySelector("#quiz");
+    let seconds = 0;
+    let timer = 0;
+    let startedAt = Date.now();
+    let answers = {};
+    let finished = false;
+
+    if (!api) {
+      position.textContent = "This lesson needs the SCORM player.";
+    } else {
+      api.LMSInitialize("");
+      const saved = Number(api.LMSGetValue("cmi.core.lesson_location"));
+      const rawSuspend = api.LMSGetValue("cmi.suspend_data");
+      if (Number.isFinite(saved) && saved > 0) seconds = Math.min(DURATION, saved);
+      try {
+        const stored = JSON.parse(rawSuspend || "{}");
+        if (stored && stored.answers) answers = stored.answers;
+      } catch (_) { /* keep going */ }
+      const status = api.LMSGetValue("cmi.core.lesson_status");
+      if (status !== "completed" && status !== "passed") {
+        api.LMSSetValue("cmi.core.lesson_status", "incomplete");
+      }
+      render();
+      commit(false);
+    }
+
+    playButton.addEventListener("click", () => {
+      if (timer) {
+        stop();
+        return;
+      }
+      playButton.textContent = "Pause";
+      timer = window.setInterval(() => {
+        seconds = Math.min(DURATION, seconds + 1);
+        render();
+        if (seconds % 5 === 0) commit(false);
+        if (seconds >= DURATION) stop();
+      }, 1000);
+    });
+
+    seek.addEventListener("input", () => {
+      seconds = Number(seek.value);
+      render();
+      commit(false);
+    });
+
+    document.querySelectorAll(".question button").forEach((button) => {
+      button.addEventListener("click", () => {
+        answers[button.dataset.question] = button.dataset.correct === "true";
+        document.querySelectorAll(`[data-question="${button.dataset.question}"]`).forEach((peer) => {
+          peer.setAttribute("aria-pressed", peer === button ? "true" : "false");
+        });
+        commit(false);
+      });
+    });
+
+    window.addEventListener("pagehide", () => commit(true));
+
+    function stop() {
+      window.clearInterval(timer);
+      timer = 0;
+      playButton.textContent = "Play";
+      commit(false);
+    }
+
+    function render() {
+      seek.value = String(seconds);
+      clock.textContent = format(seconds);
+      position.textContent = seconds > 0 ? `Resumed at ${format(seconds)}` : "Starting lesson";
+      quiz.hidden = seconds < 30;
+      Object.entries(answers).forEach(([question, correct]) => {
+        document.querySelectorAll(`[data-question="${question}"]`).forEach((button) => {
+          const pressed = (button.dataset.correct === "true") === correct;
+          button.setAttribute("aria-pressed", pressed ? "true" : "false");
+        });
+      });
+    }
+
+    function commit(done) {
+      if (!api || finished) return;
+      api.LMSSetValue("cmi.core.lesson_location", String(Math.floor(seconds)));
+      api.LMSSetValue("cmi.suspend_data", JSON.stringify({ seconds, answers }));
+      api.LMSSetValue("cmi.core.session_time", scormTime((Date.now() - startedAt) / 1000));
+      const answered = Object.keys(answers).length;
+      if (answered) {
+        const correct = Object.values(answers).filter(Boolean).length;
+        const score = Math.round((correct / 2) * 100);
+        api.LMSSetValue("cmi.core.score.raw", String(score));
+        api.LMSSetValue("cmi.core.score.min", "0");
+        api.LMSSetValue("cmi.core.score.max", "100");
+      }
+      const complete = seconds >= DURATION * 0.9 && answered === 2 && Object.values(answers).every(Boolean);
+      if (complete) api.LMSSetValue("cmi.core.lesson_status", "completed");
+      if (done) {
+        finished = true;
+        api.LMSCommit("");
+        api.LMSFinish("");
+        return;
+      }
+      api.LMSCommit("");
+    }
+
+    function format(value) {
+      const whole = Math.floor(value);
+      return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
+    }
+
+    function scormTime(value) {
+      const total = Math.max(0, Math.floor(value));
+      const hours = Math.floor(total / 3600);
+      const minutes = Math.floor((total % 3600) / 60);
+      const secondsPart = total % 60;
+      return `${String(hours).padStart(4, "0")}:${String(minutes).padStart(2, "0")}:${String(secondsPart).padStart(2, "0")}.00`;
+    }
+
+    function findAPI(win) {
+      let hops = 0;
+      while (win && win.API == null && win.parent && win.parent !== win && hops < 7) {
+        hops += 1;
+        win = win.parent;
+      }
+      return win && win.API ? win.API : null;
+    }
+  </script>
+</body>
+</html>

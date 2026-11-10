@@ -82,6 +82,10 @@ coverage-*
 # Integration test modules
 /test/integration/modules/
 
+# Aspire player uploads and build output
+/player/data/
+/player/dist/
+
 # Demo build artifacts (downloaded/copied at deploy time)
 /demo/modules/
 /demo/dist/
