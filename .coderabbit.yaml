@@ -45,8 +45,6 @@ reviews:
     - "!**/package-lock.json"
     # Decoded from the ADL test suite by generate-fixtures.ts and never edited by hand.
     - "!test/conformance/adl/fixtures/generated/**"
-    # Output from a 2024 test run.
-    - "!results.json"
 
   path_instructions:
     - path: "src/**/*.ts"
@@ -151,5 +149,5 @@ knowledge_base:
     filePatterns:
       - "CLAUDE.md"
       - "AGENTS.md"
-      - "CONTRIBUTING.md"
-      - "typescript_guidelines.md"
+      - "docs/project/CONTRIBUTING.md"
+      - "docs/project/typescript_guidelines.md"

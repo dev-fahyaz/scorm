@@ -1,6 +1,9 @@
 import { strToU8, zipSync } from "fflate";
-import { describe, expect, it } from "vitest";
-import { PackageError, openZip, parsePackage } from "../../player/server/package";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { PackageError, extractPackage, openZip } from "../../player/server/package";
 import {
   cmiForResume,
   nextTime,
@@ -27,24 +30,72 @@ const manifest12 = `<?xml version="1.0" encoding="UTF-8"?>
   </resources>
 </manifest>`;
 
-function zip(files: Record<string, string>): Uint8Array {
-  return zipSync(
-    Object.fromEntries(Object.entries(files).map(([name, text]) => [name, strToU8(text)])),
+let workDir = "";
+
+beforeEach(() => {
+  workDir = mkdtempSync(path.join(tmpdir(), "aspire-player-"));
+});
+
+afterEach(() => {
+  rmSync(workDir, { recursive: true, force: true });
+});
+
+function zip(files: Record<string, string | Uint8Array>): string {
+  const zipPath = path.join(workDir, `package-${Math.random().toString(16).slice(2)}.zip`);
+  const entries = Object.fromEntries(
+    Object.entries(files).map(([name, content]) => [
+      name,
+      typeof content === "string" ? strToU8(content) : content,
+    ]),
   );
+  writeFileSync(zipPath, zipSync(entries, { level: 9 }));
+  return zipPath;
+}
+
+function parsePackage(zipPath: string) {
+  return extractPackage(zipPath, path.join(workDir, "content"));
 }
 
 describe("SCORM package import", () => {
-  it("reads the version, title, and launch file", () => {
-    const parsed = parsePackage(
+  it("reads the version, title, and launch file, and extracts it to disk", async () => {
+    const parsed = await parsePackage(
       zip({ "imsmanifest.xml": manifest12, "index.html": "<html></html>" }),
     );
     expect(parsed.version).toBe("1.2");
     expect(parsed.title).toBe("Safety briefing");
     expect(parsed.items).toEqual([{ id: "lesson", title: "Welcome", href: "index.html" }]);
     expect(parsed.warnings).toEqual([]);
+    expect(readFileSync(path.join(workDir, "content", "index.html"), "utf8")).toBe("<html></html>");
   });
 
-  it("detects SCORM 2004 and warns about sequencing", () => {
+  it("imports packages with thousands of files", async () => {
+    const files: Record<string, string> = {
+      "imsmanifest.xml": manifest12,
+      "index.html": "<html></html>",
+    };
+    for (let index = 0; index < 2500; index += 1)
+      files[`assets/file-${index}.txt`] = `asset ${index}`;
+    const parsed = await parsePackage(zip(files));
+    expect(parsed.items).toHaveLength(1);
+    expect(existsSync(path.join(workDir, "content", "assets", "file-2499.txt"))).toBe(true);
+  }, 60_000);
+
+  it("rejects entries that look like a ZIP bomb", async () => {
+    const bomb = new Uint8Array(20 * 1024 * 1024);
+    await expect(
+      parsePackage(
+        zip({ "imsmanifest.xml": manifest12, "index.html": "<html></html>", "bomb.bin": bomb }),
+      ),
+    ).rejects.toThrow(/ZIP bomb/);
+  });
+
+  it("rejects a file that is not a ZIP", async () => {
+    const notZip = path.join(workDir, "not-a-zip.zip");
+    writeFileSync(notZip, "plain text");
+    await expect(parsePackage(notZip)).rejects.toThrow(/not a valid ZIP/);
+  });
+
+  it("detects SCORM 2004 and warns about sequencing", async () => {
     const xml = manifest12
       .replace(
         "<schemaversion>1.2</schemaversion>",
@@ -54,29 +105,36 @@ describe("SCORM package import", () => {
         "<title>Welcome</title>",
         '<title>Welcome</title><sequencing><controlMode choice="true"/></sequencing>',
       );
-    const parsed = parsePackage(zip({ "imsmanifest.xml": xml, "index.html": "<html></html>" }));
+    const parsed = await parsePackage(
+      zip({ "imsmanifest.xml": xml, "index.html": "<html></html>" }),
+    );
     expect(parsed.version).toBe("2004");
     expect(parsed.warnings.some((warning) => warning.includes("sequencing"))).toBe(true);
   });
 
-  it("rejects a package with no manifest at the root", () => {
-    expect(() => parsePackage(zip({ "course/imsmanifest.xml": manifest12 }))).toThrow(PackageError);
-    expect(() => parsePackage(zip({ "index.html": "<html></html>" }))).toThrow(
+  it("rejects a package with no manifest at the root before extracting", async () => {
+    await expect(parsePackage(zip({ "course/imsmanifest.xml": manifest12 }))).rejects.toThrow(
+      PackageError,
+    );
+    await expect(parsePackage(zip({ "index.html": "<html></html>" }))).rejects.toThrow(
       /no imsmanifest\.xml at the ZIP root/,
     );
+    expect(existsSync(path.join(workDir, "content"))).toBe(false);
   });
 
-  it("rejects paths that escape the archive", () => {
-    expect(() => openZip(zip({ "../secret.txt": "nope" }))).toThrow(/escapes the archive/);
-    expect(() => openZip(zip({ "/etc/passwd": "nope" }))).toThrow(/absolute path/);
+  it("rejects paths that escape the archive", async () => {
+    await expect(openZip(zip({ "../secret.txt": "nope" }))).rejects.toThrow(/escapes the archive/);
+    await expect(openZip(zip({ "/etc/passwd": "nope" }))).rejects.toThrow(/absolute path/);
   });
 
-  it("warns when a referenced file is missing but the launch file exists", () => {
+  it("warns when a referenced file is missing but the launch file exists", async () => {
     const xml = manifest12.replace(
       '<file href="index.html"/>',
       '<file href="index.html"/><file href="missing.js"/>',
     );
-    const parsed = parsePackage(zip({ "imsmanifest.xml": xml, "index.html": "<html></html>" }));
+    const parsed = await parsePackage(
+      zip({ "imsmanifest.xml": xml, "index.html": "<html></html>" }),
+    );
     expect(parsed.warnings.some((warning) => warning.includes("missing.js"))).toBe(true);
     expect(parsed.items).toHaveLength(1);
   });

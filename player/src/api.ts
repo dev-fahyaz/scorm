@@ -22,20 +22,43 @@ export async function getCourse(courseId: string): Promise<Course> {
   return (await response.json()) as Course;
 }
 
-export async function uploadCourse(file: File): Promise<Course> {
+export type UploadProgress = { phase: "uploading"; percent: number } | { phase: "unpacking" };
+
+export function uploadCourse(
+  file: File,
+  onProgress: (progress: UploadProgress) => void,
+): Promise<Course> {
   const body = new FormData();
   body.set("package", file);
-  const response = await fetch("/api/courses", { method: "POST", body });
-  if (!response.ok) throw new Error(await readError(response));
-  return (await response.json()) as Course;
+  return new Promise((resolve, reject) => {
+    const request = new XMLHttpRequest();
+    request.open("POST", "/api/courses");
+    request.responseType = "json";
+    request.upload.onprogress = (event) => {
+      if (!event.lengthComputable) return;
+      onProgress({ phase: "uploading", percent: Math.round((event.loaded / event.total) * 100) });
+    };
+    request.upload.onload = () => onProgress({ phase: "unpacking" });
+    request.onload = () => {
+      const response = request.response as (Course & { error?: string }) | null;
+      if (request.status >= 200 && request.status < 300 && response) resolve(response);
+      else reject(new Error(response?.error || "The upload failed."));
+    };
+    request.onerror = () => reject(new Error("The upload was interrupted."));
+    request.send(body);
+  });
 }
 
 export async function removeCourse(courseId: string): Promise<void> {
-  const response = await fetch(`/api/courses/${encodeURIComponent(courseId)}`, { method: "DELETE" });
+  const response = await fetch(`/api/courses/${encodeURIComponent(courseId)}`, {
+    method: "DELETE",
+  });
   if (!response.ok) throw new Error(await readError(response));
 }
 
 export async function resetCourse(courseId: string): Promise<void> {
-  const response = await fetch(`/api/courses/${encodeURIComponent(courseId)}/reset`, { method: "POST" });
+  const response = await fetch(`/api/courses/${encodeURIComponent(courseId)}/reset`, {
+    method: "POST",
+  });
   if (!response.ok) throw new Error(await readError(response));
 }

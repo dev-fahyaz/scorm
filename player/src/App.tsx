@@ -2,9 +2,7 @@ import { useEffect, useState } from "react";
 import { Library } from "./Library";
 import { PlayerView } from "./PlayerView";
 
-type Route =
-  | { name: "library" }
-  | { name: "player"; courseId: string; itemId: string | null };
+type Route = { name: "library" } | { name: "player"; courseId: string; itemId: string | null };
 
 function readRoute(): Route {
   const match = window.location.pathname.match(/^\/play\/([^/]+)(?:\/([^/]+))?\/?$/);

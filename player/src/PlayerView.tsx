@@ -8,7 +8,11 @@ import type { Attempt, Course } from "./types";
 export function PlayerView({ courseId, itemId }: { courseId: string; itemId: string | null }) {
   const [course, setCourse] = useState<Course | null>(null);
   const [error, setError] = useState("");
-  const [live, setLive] = useState({ completion: "not attempted", success: null as "passed" | "failed" | null, scoreRaw: null as number | null });
+  const [live, setLive] = useState({
+    completion: "not attempted",
+    success: null as "passed" | "failed" | null,
+    scoreRaw: null as number | null,
+  });
   const [elapsed, setElapsed] = useState(0);
   const frameRef = useRef<HTMLIFrameElement>(null);
 
@@ -19,7 +23,8 @@ export function PlayerView({ courseId, itemId }: { courseId: string; itemId: str
         if (!ignore) setCourse(next);
       })
       .catch((reason: unknown) => {
-        if (!ignore) setError(reason instanceof Error ? reason.message : "The course could not be opened.");
+        if (!ignore)
+          setError(reason instanceof Error ? reason.message : "The course could not be opened.");
       });
     return () => {
       ignore = true;
@@ -32,7 +37,10 @@ export function PlayerView({ courseId, itemId }: { courseId: string; itemId: str
   useEffect(() => {
     if (!course || !item) return;
     const startedAt = Date.now();
-    const timer = window.setInterval(() => setElapsed(Math.floor((Date.now() - startedAt) / 1000)), 1000);
+    const timer = window.setInterval(
+      () => setElapsed(Math.floor((Date.now() - startedAt) / 1000)),
+      1000,
+    );
     let started = false;
     const api = attachRuntime(course.version, course.id, item.id, attempt?.cmi ?? null);
     const refresh = () => {
@@ -99,12 +107,21 @@ export function PlayerView({ courseId, itemId }: { courseId: string; itemId: str
                 <button
                   type="button"
                   className={entry.id === item.id ? "current" : ""}
-                  onClick={() => navigate(`/play/${encodeURIComponent(course.id)}/${encodeURIComponent(entry.id)}`)}
+                  onClick={() =>
+                    navigate(
+                      `/play/${encodeURIComponent(course.id)}/${encodeURIComponent(entry.id)}`,
+                    )
+                  }
                 >
                   <span>{entryIndex + 1}</span>
                   <span>
                     <strong>{entry.title}</strong>
-                    <small>{statusLabel(state, entry.id === item.id ? live.success : successFor(course, entry.id))}</small>
+                    <small>
+                      {statusLabel(
+                        state,
+                        entry.id === item.id ? live.success : successFor(course, entry.id),
+                      )}
+                    </small>
                   </span>
                 </button>
               </li>
@@ -119,23 +136,41 @@ export function PlayerView({ courseId, itemId }: { courseId: string; itemId: str
             <h2>{item.title}</h2>
           </div>
           <div className="metrics">
-            <span className="chip" data-status={live.completion}>{statusLabel(live.completion, live.success)}</span>
+            <span className="chip" data-status={live.completion}>
+              {statusLabel(live.completion, live.success)}
+            </span>
             <span>{live.scoreRaw == null ? "Score —" : `Score ${live.scoreRaw}`}</span>
             <span>{formatClock(stored + elapsed)}</span>
           </div>
-          <div className="bar wide" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}>
+          <div
+            className="bar wide"
+            role="progressbar"
+            aria-valuenow={progress}
+            aria-valuemin={0}
+            aria-valuemax={100}
+          >
             <span style={{ width: `${progress}%` }} />
           </div>
         </div>
         <iframe ref={frameRef} title={item.title} src="about:blank" />
         <footer className="stage-nav">
-          <button className="quiet" type="button" disabled={!previous} onClick={() => previous && navigate(itemPath(course.id, previous.id))}>
+          <button
+            className="quiet"
+            type="button"
+            disabled={!previous}
+            onClick={() => previous && navigate(itemPath(course.id, previous.id))}
+          >
             Previous
           </button>
           <button className="quiet" type="button" onClick={() => navigate("/")}>
             Exit
           </button>
-          <button className="primary" type="button" disabled={!next} onClick={() => next && navigate(itemPath(course.id, next.id))}>
+          <button
+            className="primary"
+            type="button"
+            disabled={!next}
+            onClick={() => next && navigate(itemPath(course.id, next.id))}
+          >
             Next
           </button>
         </footer>

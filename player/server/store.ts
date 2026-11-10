@@ -3,18 +3,12 @@ import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync 
 import path from "node:path";
 import {
   PackageError,
+  extractPackage,
   parseManifest,
-  parsePackage,
   type CourseItem,
   type ParsedPackage,
 } from "./package";
-import {
-  cmiOf,
-  nextTime,
-  normalizeCommit,
-  totalSeconds,
-  type ScormVersion,
-} from "./normalize";
+import { cmiOf, nextTime, normalizeCommit, totalSeconds, type ScormVersion } from "./normalize";
 
 export const SAMPLE_COURSE_ID = "aspire-sample";
 
@@ -85,7 +79,8 @@ export function parseAttemptId(id: string): { courseId: string; itemId: string }
 
 export function summarize(course: CourseRecord, attempts: AttemptRecord[]): CourseSummary {
   const relevant = course.items.map(
-    (item) => attempts.find((attempt) => attempt.itemId === item.id) ?? emptyAttempt(course.id, item.id),
+    (item) =>
+      attempts.find((attempt) => attempt.itemId === item.id) ?? emptyAttempt(course.id, item.id),
   );
   const done = relevant.filter((attempt) => attempt.completion === "completed").length;
   const started = relevant.some(
@@ -96,7 +91,9 @@ export function summarize(course: CourseRecord, attempts: AttemptRecord[]): Cour
   if (single?.progress != null && single.completion !== "completed") {
     progress = Math.round(single.progress * 100);
   }
-  const scores = relevant.map((attempt) => attempt.scoreRaw).filter((score): score is number => score != null);
+  const scores = relevant
+    .map((attempt) => attempt.scoreRaw)
+    .filter((score): score is number => score != null);
   const success = relevant.some((attempt) => attempt.success === "failed")
     ? "failed"
     : relevant.some((attempt) => attempt.success === "passed")
@@ -108,7 +105,9 @@ export function summarize(course: CourseRecord, attempts: AttemptRecord[]): Cour
   return {
     completion,
     success,
-    scoreRaw: scores.length ? Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length) : null,
+    scoreRaw: scores.length
+      ? Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length)
+      : null,
     timeSeconds: relevant.reduce((sum, attempt) => sum + totalSeconds(attempt), 0),
     progress,
   };
@@ -143,7 +142,9 @@ export class CourseStore {
     }));
   }
 
-  get(courseId: string): (CourseRecord & { summary: CourseSummary; attempts: AttemptRecord[] }) | null {
+  get(
+    courseId: string,
+  ): (CourseRecord & { summary: CourseSummary; attempts: AttemptRecord[] }) | null {
     const db = this.read();
     const course = db.courses.find((item) => item.id === courseId);
     if (!course) return null;
@@ -151,24 +152,20 @@ export class CourseStore {
     return { ...course, attempts, summary: summarize(course, attempts) };
   }
 
-  importZip(data: Uint8Array): CourseRecord & { summary: CourseSummary } {
-    const parsed = parsePackage(data);
+  async importZip(zipPath: string): Promise<CourseRecord & { summary: CourseSummary }> {
     const id = `course-${randomBytes(8).toString("hex")}`;
-    const course = this.writeCourse(id, parsed, false);
-    const root = path.join(this.dataDir, "content", id);
-    mkdirSync(root, { recursive: true });
+    const contentDir = path.join(this.dataDir, "content");
+    const staging = path.join(contentDir, `.staging-${id}`);
+    mkdirSync(contentDir, { recursive: true });
     try {
-      for (const [name, bytes] of parsed.files) {
-        const destination = safeJoin(root, name);
-        mkdirSync(path.dirname(destination), { recursive: true });
-        writeFileSync(destination, bytes);
-      }
+      const parsed = await extractPackage(zipPath, staging);
+      renameSync(staging, path.join(contentDir, id));
+      const course = this.writeCourse(id, parsed, false);
+      return { ...course, summary: summarize(course, []) };
     } catch (error) {
-      rmSync(root, { recursive: true, force: true });
-      this.removeCourseRecord(id);
-      throw error instanceof PackageError ? error : new PackageError("The package could not be stored.");
+      rmSync(staging, { recursive: true, force: true });
+      throw error;
     }
-    return { ...course, summary: summarize(course, []) };
   }
 
   remove(courseId: string): boolean {
@@ -190,11 +187,7 @@ export class CourseStore {
     return true;
   }
 
-  commit(
-    id: string,
-    body: unknown,
-    terminate: boolean,
-  ): AttemptRecord {
+  commit(id: string, body: unknown, terminate: boolean): AttemptRecord {
     const parsed = parseAttemptId(id);
     if (!parsed) throw new PackageError("Unknown attempt.");
     const db = this.read();
@@ -203,14 +196,16 @@ export class CourseStore {
     if (!course || !item) throw new PackageError("Unknown attempt.");
 
     const existing =
-      db.attempts.find((attempt) => attempt.id === id) ?? emptyAttempt(parsed.courseId, parsed.itemId);
+      db.attempts.find((attempt) => attempt.id === id) ??
+      emptyAttempt(parsed.courseId, parsed.itemId);
     const normalized = normalizeCommit(body, course.version);
     const time = nextTime(existing, normalized.sessionSeconds, terminate);
     const cmi = cmiOf(body);
     const next: AttemptRecord = {
       ...existing,
       cmi: Object.keys(cmi).length > 0 ? cmi : existing.cmi,
-      completion: normalized.completion === "not attempted" ? existing.completion : normalized.completion,
+      completion:
+        normalized.completion === "not attempted" ? existing.completion : normalized.completion,
       success: normalized.success ?? existing.success,
       scoreRaw: normalized.scoreRaw ?? existing.scoreRaw,
       scoreMin: normalized.scoreMin ?? existing.scoreMin,
@@ -246,12 +241,6 @@ export class CourseStore {
     return record;
   }
 
-  private removeCourseRecord(id: string): void {
-    const db = this.read();
-    db.courses = db.courses.filter((course) => course.id !== id);
-    this.write(db);
-  }
-
   private record(id: string, parsed: ParsedPackage, builtin: boolean): CourseRecord {
     return {
       id,
@@ -284,15 +273,6 @@ export class CourseStore {
     rmSync(this.file, { force: true });
     renameSync(temporary, this.file);
   }
-}
-
-function safeJoin(root: string, name: string): string {
-  const destination = path.resolve(root, ...name.split("/"));
-  const base = path.resolve(root);
-  if (destination !== base && !destination.startsWith(base + path.sep)) {
-    throw new PackageError(`The package contains an unsafe path: ${name}`);
-  }
-  return destination;
 }
 
 export type { CourseItem };

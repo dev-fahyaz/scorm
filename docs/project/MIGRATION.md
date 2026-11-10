@@ -488,5 +488,5 @@ New settings for offline operation:
 ## Need Help?
 
 - [GitHub Issues](https://github.com/jcputney/scorm-again/issues) - Report bugs or ask questions
-- [Documentation](docs/) - Detailed feature documentation
-- [Examples](docs/examples/) - Code examples and integration guides
+- [Documentation](../) - Detailed feature documentation
+- [Examples](../api_usage/examples/) - Code examples and integration guides

@@ -1,5 +1,5 @@
 import { useEffect, useState, type DragEvent, type FormEvent } from "react";
-import { listCourses, removeCourse, resetCourse, uploadCourse } from "./api";
+import { listCourses, removeCourse, resetCourse, uploadCourse, type UploadProgress } from "./api";
 import { navigate } from "./App";
 import { formatClock, statusLabel } from "../server/normalize";
 import type { Course } from "./types";
@@ -7,8 +7,9 @@ import type { Course } from "./types";
 export function Library() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState<UploadProgress | null>(null);
   const [dragging, setDragging] = useState(false);
+  const busy = progress !== null;
 
   async function refresh() {
     setCourses(await listCourses());
@@ -19,17 +20,17 @@ export function Library() {
   }, []);
 
   async function accept(file: File | undefined) {
-    if (!file) return;
-    setBusy(true);
+    if (!file || busy) return;
+    setProgress({ phase: "uploading", percent: 0 });
     setError("");
     try {
-      const course = await uploadCourse(file);
+      const course = await uploadCourse(file, setProgress);
       await refresh();
       navigate(playPath(course));
     } catch (reason) {
       setError(message(reason));
     } finally {
-      setBusy(false);
+      setProgress(null);
     }
   }
 
@@ -75,15 +76,26 @@ export function Library() {
             input.value = "";
           }}
         />
-        <strong>{busy ? "Checking package…" : "Drop a SCORM ZIP here"}</strong>
-        <span>or choose a file. The manifest must sit at the root of the archive.</span>
+        <strong>{progressLabel(progress)}</strong>
+        {progress ? (
+          <div className="bar upload-bar" aria-hidden="true">
+            <span
+              className={progress.phase === "unpacking" ? "indeterminate" : undefined}
+              style={{ width: progress.phase === "uploading" ? `${progress.percent}%` : "100%" }}
+            />
+          </div>
+        ) : (
+          <span>or choose a file. The manifest must sit at the root of the archive.</span>
+        )}
       </label>
       {error ? <p className="banner">{error}</p> : null}
       <section className="cards" aria-label="Course library">
         {courses.map((course) => (
           <article className="card" key={course.id}>
             <div className="card-top">
-              <span className="chip" data-status={course.summary.completion}>{statusLabel(course.summary.completion, course.summary.success)}</span>
+              <span className="chip" data-status={course.summary.completion}>
+                {statusLabel(course.summary.completion, course.summary.success)}
+              </span>
               <span className="version">SCORM {course.version}</span>
             </div>
             <h2>{course.title}</h2>
@@ -96,7 +108,9 @@ export function Library() {
             </div>
             <p className="stats">
               <span>{course.summary.progress}% complete</span>
-              <span>{course.summary.scoreRaw == null ? "No score" : `Score ${course.summary.scoreRaw}`}</span>
+              <span>
+                {course.summary.scoreRaw == null ? "No score" : `Score ${course.summary.scoreRaw}`}
+              </span>
               <span>{formatClock(course.summary.timeSeconds)}</span>
             </p>
             {course.warnings.length > 0 ? <p className="warning">{course.warnings[0]}</p> : null}
@@ -120,6 +134,12 @@ function playPath(course: Course): string {
   const item = course.items[0];
   if (!item) return `/play/${encodeURIComponent(course.id)}`;
   return `/play/${encodeURIComponent(course.id)}/${encodeURIComponent(item.id)}`;
+}
+
+function progressLabel(progress: UploadProgress | null): string {
+  if (!progress) return "Drop a SCORM ZIP here";
+  if (progress.phase === "unpacking") return "Unpacking package…";
+  return `Uploading… ${progress.percent}%`;
 }
 
 function message(reason: unknown): string {

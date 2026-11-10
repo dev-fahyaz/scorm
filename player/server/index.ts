@@ -1,5 +1,6 @@
 import express, { type ErrorRequestHandler } from "express";
-import { existsSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, statSync } from "node:fs";
+import { rm } from "node:fs/promises";
 import { createServer as createViteServer } from "vite";
 import multer from "multer";
 import path from "node:path";
@@ -14,9 +15,11 @@ const port = Number(process.env.PLAYER_PORT || 4173);
 const production = process.env.NODE_ENV === "production";
 
 const store = new CourseStore(dataDir, sampleDir);
+const uploadDir = path.join(dataDir, "uploads");
+mkdirSync(uploadDir, { recursive: true });
 const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 200 * 1024 * 1024, files: 1 },
+  dest: uploadDir,
+  limits: { files: 1 },
 });
 
 const app = express();
@@ -36,12 +39,9 @@ app.get("/api/courses/:courseId", (req, res) => {
 });
 
 app.post("/api/courses", (req, res) => {
-  upload.single("package")(req, res, (error) => {
+  upload.single("package")(req, res, async (error) => {
     if (error) {
-      const tooLarge = typeof error === "object" && error && "code" in error && error.code === "LIMIT_FILE_SIZE";
-      res.status(400).json({
-        error: tooLarge ? "The ZIP is larger than 200 MB." : "The upload could not be read.",
-      });
+      res.status(400).json({ error: "The upload could not be read." });
       return;
     }
     if (!req.file) {
@@ -49,11 +49,16 @@ app.post("/api/courses", (req, res) => {
       return;
     }
     try {
-      res.status(201).json(store.importZip(req.file.buffer));
+      res.status(201).json(await store.importZip(req.file.path));
     } catch (importError) {
-      const message =
-        importError instanceof PackageError ? importError.message : "The package could not be imported.";
-      res.status(400).json({ error: message });
+      if (importError instanceof PackageError) {
+        res.status(400).json({ error: importError.message });
+      } else {
+        console.error(importError);
+        res.status(500).json({ error: "The package could not be stored." });
+      }
+    } finally {
+      await rm(req.file.path, { force: true });
     }
   });
 });
@@ -131,7 +136,7 @@ app.use(reportError);
 if (!production) {
   const vite = await createViteServer({
     root: playerRoot,
-    server: { middlewareMode: true },
+    server: { middlewareMode: true, watch: { ignored: [`${dataDir.replace(/\\/g, "/")}/**`] } },
     appType: "spa",
   });
   app.use(vite.middlewares);
@@ -143,6 +148,8 @@ if (!production) {
   });
 }
 
-app.listen(port, () => {
+const server = app.listen(port, () => {
   console.log(`Aspire TSS player: http://localhost:${port}`);
 });
+server.requestTimeout = 0;
+server.headersTimeout = 120_000;

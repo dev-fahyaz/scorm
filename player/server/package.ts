@@ -1,11 +1,13 @@
-import { unzipSync, type UnzipFileInfo } from "fflate";
+import { createWriteStream } from "node:fs";
+import { mkdir } from "node:fs/promises";
+import path from "node:path";
+import { pipeline } from "node:stream/promises";
 import { XMLParser } from "fast-xml-parser";
+import yauzl, { type Entry, type ZipFile } from "yauzl";
 
-export const LIMITS = {
-  maxUploadBytes: 200 * 1024 * 1024,
-  maxFiles: 2000,
-  maxUncompressedBytes: 500 * 1024 * 1024,
-  maxCompressionRatio: 100,
+export const ZIP_BOMB = {
+  maxRatio: 100,
+  minCheckedBytes: 10 * 1024 * 1024,
 };
 
 export class PackageError extends Error {
@@ -28,11 +30,16 @@ export type ParsedPackage = {
   warnings: string[];
 };
 
-const UNSAFE_ENTRY = /[\u0000-\u001f]/;
+function hasControlCharacter(value: string): boolean {
+  for (let index = 0; index < value.length; index += 1) {
+    if (value.charCodeAt(index) < 0x20) return true;
+  }
+  return false;
+}
 
 export function assertSafeEntry(name: string): string {
   const normalized = name.replace(/\\/g, "/").replace(/^\.\//, "");
-  if (normalized === "" || UNSAFE_ENTRY.test(normalized)) {
+  if (normalized === "" || hasControlCharacter(normalized)) {
     throw new PackageError(`The package contains an unsafe path: ${name}`);
   }
   if (normalized.startsWith("/") || /^[a-zA-Z]:/.test(normalized)) {
@@ -45,66 +52,85 @@ export function assertSafeEntry(name: string): string {
   return normalized;
 }
 
-export function openZip(data: Uint8Array): Map<string, Uint8Array> {
-  if (data.byteLength > LIMITS.maxUploadBytes) {
-    throw new PackageError("The ZIP is larger than 200 MB.");
-  }
+type ZipEntries = {
+  zip: ZipFile;
+  files: Map<string, Entry>;
+};
 
-  let count = 0;
-  let declaredBytes = 0;
-  let files: Record<string, Uint8Array>;
+function zipError(error: unknown): PackageError {
+  if (error instanceof PackageError) return error;
+  if (error && typeof error === "object" && "code" in error && error.code === "ENOSPC") {
+    return new PackageError("The server ran out of disk space while unpacking the package.");
+  }
+  const message = error instanceof Error ? error.message : "";
+  if (/absolute path/i.test(message)) {
+    return new PackageError(`The package contains an absolute path: ${message.split(": ").pop()}`);
+  }
+  if (/invalid relative path/i.test(message)) {
+    return new PackageError(
+      `The package contains a path that escapes the archive: ${message.split(": ").pop()}`,
+    );
+  }
+  if (/invalid characters/i.test(message)) {
+    return new PackageError("The package contains an unsafe path.");
+  }
+  return new PackageError("The file is not a valid ZIP package.");
+}
+
+export async function openZip(zipPath: string): Promise<ZipEntries> {
+  let zip: ZipFile;
   try {
-    files = unzipSync(data, {
-      filter(file: UnzipFileInfo) {
-        const name = assertSafeEntry(file.name);
-        if (name.endsWith("/")) return false;
-        count += 1;
-        const original = file.originalSize || 0;
-        declaredBytes += original;
-        if (count > LIMITS.maxFiles) {
-          throw new PackageError("The package contains too many files.");
-        }
-        if (declaredBytes > LIMITS.maxUncompressedBytes) {
-          throw new PackageError("The package expands beyond the 500 MB limit.");
-        }
-        const compressed = file.size || 0;
-        if (
-          original > 10 * 1024 * 1024 &&
-          compressed > 0 &&
-          original / compressed > LIMITS.maxCompressionRatio
-        ) {
-          throw new PackageError("The package looks like a ZIP bomb and was rejected.");
-        }
-        return true;
-      },
-    });
+    zip = await yauzl.openPromise(zipPath, { lazyEntries: true, autoClose: false });
   } catch (error) {
-    if (error instanceof PackageError) throw error;
-    throw new PackageError("The file is not a valid ZIP package.");
+    throw zipError(error);
   }
 
-  const extracted = new Map<string, Uint8Array>();
-  let actualBytes = 0;
-  for (const [name, bytes] of Object.entries(files)) {
-    const safe = assertSafeEntry(name);
-    if (safe.endsWith("/")) continue;
-    actualBytes += bytes.byteLength;
-    if (actualBytes > LIMITS.maxUncompressedBytes) {
-      throw new PackageError("The package expands beyond the 500 MB limit.");
+  const files = new Map<string, Entry>();
+  try {
+    for await (const entry of zip.eachEntry()) {
+      const name = assertSafeEntry(entry.fileName);
+      if (name.endsWith("/")) continue;
+      if (entry.isEncrypted()) {
+        throw new PackageError(`The package contains an encrypted file: ${name}`);
+      }
+      if (
+        entry.uncompressedSize > ZIP_BOMB.minCheckedBytes &&
+        entry.compressedSize > 0 &&
+        entry.uncompressedSize / entry.compressedSize > ZIP_BOMB.maxRatio
+      ) {
+        throw new PackageError("The package looks like a ZIP bomb and was rejected.");
+      }
+      files.set(name, entry);
     }
-    extracted.set(safe, bytes);
+  } catch (error) {
+    zip.close();
+    throw zipError(error);
   }
-  if (extracted.size > LIMITS.maxFiles) {
-    throw new PackageError("The package contains too many files.");
+  return { zip, files };
+}
+
+async function readText(zip: ZipFile, entry: Entry): Promise<string> {
+  const stream = await zip.openReadStreamPromise(entry);
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream) chunks.push(chunk as Buffer);
+  return new TextDecoder("utf-8").decode(Buffer.concat(chunks));
+}
+
+function destinationFor(root: string, name: string): string {
+  const base = path.resolve(root);
+  const destination = path.resolve(base, ...name.split("/"));
+  if (destination !== base && !destination.startsWith(base + path.sep)) {
+    throw new PackageError(`The package contains an unsafe path: ${name}`);
   }
-  return extracted;
+  return destination;
 }
 
 type XmlNode = Record<string, unknown>;
 
 function asArray(value: unknown): XmlNode[] {
   if (value == null) return [];
-  if (Array.isArray(value)) return value.filter((item) => item && typeof item === "object") as XmlNode[];
+  if (Array.isArray(value))
+    return value.filter((item) => item && typeof item === "object") as XmlNode[];
   if (typeof value === "object") return [value as XmlNode];
   return [];
 }
@@ -140,10 +166,14 @@ function findFile(names: string[], href: string): string | null {
   return names.find((name) => name.toLowerCase() === lower) ?? null;
 }
 
-function detectVersion(schemaVersion: string, rawXml: string): { version: "1.2" | "2004"; warning?: string } {
+function detectVersion(
+  schemaVersion: string,
+  rawXml: string,
+): { version: "1.2" | "2004"; warning?: string } {
   const value = schemaVersion.toLowerCase();
   if (value.includes("1.2")) return { version: "1.2" };
-  if (value.includes("2004") || value.includes("1.3") || /\bcam\b/.test(value)) return { version: "2004" };
+  if (value.includes("2004") || value.includes("1.3") || /\bcam\b/.test(value))
+    return { version: "2004" };
   if (/adlcp_rootv1p3|imscp_v1p1|adlseq_|adlnav_/i.test(rawXml)) return { version: "2004" };
   if (/imscp_rootv1p1p2|adlcp_rootv1p2/i.test(rawXml)) return { version: "1.2" };
   return {
@@ -219,7 +249,9 @@ export function parseManifest(rawXml: string, fileNames: string[]): ParsedPackag
   visit(organization.item);
 
   if (sequencing) {
-    warnings.push("This package includes sequencing. Items launch directly, without sequencing rules.");
+    warnings.push(
+      "This package includes sequencing. Items launch directly, without sequencing rules.",
+    );
   }
 
   for (const resource of resources.values()) {
@@ -244,16 +276,32 @@ export function parseManifest(rawXml: string, fileNames: string[]): ParsedPackag
   };
 }
 
-export function parsePackage(
-  data: Uint8Array,
-): ParsedPackage & { files: Map<string, Uint8Array> } {
-  const files = openZip(data);
-  const manifestName =
-    [...files.keys()].find((name) => name.toLowerCase() === "imsmanifest.xml") ?? null;
-  if (!manifestName) {
-    throw new PackageError("The package has no imsmanifest.xml at the ZIP root.");
+export async function extractPackage(zipPath: string, destination: string): Promise<ParsedPackage> {
+  const { zip, files } = await openZip(zipPath);
+  try {
+    const manifestName =
+      [...files.keys()].find((name) => name.toLowerCase() === "imsmanifest.xml") ?? null;
+    if (!manifestName) {
+      throw new PackageError("The package has no imsmanifest.xml at the ZIP root.");
+    }
+    const xml = await readText(zip, files.get(manifestName)!);
+    const parsed = parseManifest(xml, [...files.keys()]);
+
+    const createdDirs = new Set<string>();
+    for (const [name, entry] of files) {
+      const target = destinationFor(destination, name);
+      const dir = path.dirname(target);
+      if (!createdDirs.has(dir)) {
+        await mkdir(dir, { recursive: true });
+        createdDirs.add(dir);
+      }
+      const stream = await zip.openReadStreamPromise(entry);
+      await pipeline(stream, createWriteStream(target));
+    }
+    return parsed;
+  } catch (error) {
+    throw zipError(error);
+  } finally {
+    zip.close();
   }
-  const xml = new TextDecoder("utf-8").decode(files.get(manifestName));
-  const parsed = parseManifest(xml, [...files.keys()]);
-  return { ...parsed, files };
 }
