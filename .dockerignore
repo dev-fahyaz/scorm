@@ -1,0 +1,16 @@
+.git
+.github
+.githooks
+.claude
+**/node_modules
+dist
+player/dist
+player/data
+test
+docs
+coverage
+coverage-*
+reports
+playwright-report
+test-results
+*.log

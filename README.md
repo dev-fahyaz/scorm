@@ -14,6 +14,14 @@ npm run player
 
 Open http://localhost:4173. Set `PLAYER_PORT` to use a different port.
 
+## Run with Docker
+
+```bash
+docker compose up --build
+```
+
+Open http://localhost:4173. Courses and progress are kept in the `player-data` volume, so they survive restarts and rebuilds.
+
 ## What it does
 
 1. **Upload.** Drop a SCORM ZIP onto the library. The page shows upload progress, then unpacking progress.
@@ -38,7 +46,7 @@ For each lesson the player stores completion, success, score, total time, and th
 
 ## Data
 
-Everything lives in `player/data/`:
+Everything lives in `player/data/` (`/app/player/data` in the container):
 
 - `catalog.json` for courses and attempts
 - `content/<course-id>/` for unpacked packages

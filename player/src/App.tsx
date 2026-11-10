@@ -32,7 +32,7 @@ export function App() {
     <div className="app">
       <header className="topbar">
         <button className="brand" type="button" onClick={() => navigate("/")}>
-          <span className="mark" aria-hidden="true" />
+          <img className="mark" src="/logo.png" alt="" />
           <span>Aspire TSS</span>
         </button>
         <p>SCORM player</p>

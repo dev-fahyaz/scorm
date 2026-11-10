@@ -1,0 +1,11 @@
+services:
+  player:
+    build: .
+    ports:
+      - "4173:4173"
+    volumes:
+      - player-data:/app/player/data
+    restart: unless-stopped
+
+volumes:
+  player-data:

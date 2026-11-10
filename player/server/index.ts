@@ -1,7 +1,6 @@
 import express, { type ErrorRequestHandler } from "express";
 import { existsSync, mkdirSync, statSync } from "node:fs";
 import { rm } from "node:fs/promises";
-import { createServer as createViteServer } from "vite";
 import multer from "multer";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -134,6 +133,7 @@ const reportError: ErrorRequestHandler = (error, _req, res, _next) => {
 app.use(reportError);
 
 if (!production) {
+  const { createServer: createViteServer } = await import("vite");
   const vite = await createViteServer({
     root: playerRoot,
     server: { middlewareMode: true, watch: { ignored: [`${dataDir.replace(/\\/g, "/")}/**`] } },

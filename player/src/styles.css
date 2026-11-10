@@ -66,11 +66,9 @@ p {
   font-size: 18px;
 }
 .mark {
-  width: 22px;
-  height: 22px;
-  border-radius: 6px;
-  background:
-    linear-gradient(160deg, transparent 46%, #fff 46% 54%, transparent 54%), var(--accent);
+  height: 32px;
+  width: auto;
+  object-fit: contain;
 }
 
 .library {
