@@ -35,9 +35,21 @@ export function finishRuntime(api: RuntimeApi, version: ScormVersion, started: b
     clearRuntimes();
     return;
   }
-  if (version === "1.2") (api as Scorm12API).LMSFinish("");
-  else (api as Scorm2004API).Terminate("");
-  clearRuntimes();
+  try {
+    // Terminate sends the last bookmark with sendBeacon. A synchronous commit first
+    // lands location and suspend_data before the next lesson opens.
+    if (version === "1.2") {
+      const scorm12 = api as Scorm12API;
+      scorm12.LMSCommit("");
+      scorm12.LMSFinish("");
+    } else {
+      const scorm2004 = api as Scorm2004API;
+      scorm2004.Commit("");
+      scorm2004.Terminate("");
+    }
+  } finally {
+    clearRuntimes();
+  }
 }
 
 function clearRuntimes(): void {

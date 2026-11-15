@@ -15,6 +15,8 @@ export function PlayerView({ courseId, itemId }: { courseId: string; itemId: str
   });
   const [elapsed, setElapsed] = useState(0);
   const frameRef = useRef<HTMLIFrameElement>(null);
+  const savedCmi = useRef(new Map<string, Record<string, unknown>>());
+  const cacheCourseId = useRef<string | null>(null);
 
   useEffect(() => {
     let ignore = false;
@@ -35,6 +37,18 @@ export function PlayerView({ courseId, itemId }: { courseId: string; itemId: str
   const attempt = course?.attempts?.find((entry) => entry.itemId === item?.id) ?? null;
 
   useEffect(() => {
+    if (!course || course.id !== courseId) return;
+    if (cacheCourseId.current !== course.id) {
+      savedCmi.current.clear();
+      cacheCourseId.current = course.id;
+    }
+    for (const stored of course.attempts ?? []) {
+      if (!stored.cmi || savedCmi.current.has(stored.itemId)) continue;
+      savedCmi.current.set(stored.itemId, stored.cmi);
+    }
+  }, [course, courseId]);
+
+  useEffect(() => {
     if (!course || !item) return;
     const startedAt = Date.now();
     const timer = window.setInterval(
@@ -42,14 +56,40 @@ export function PlayerView({ courseId, itemId }: { courseId: string; itemId: str
       1000,
     );
     let started = false;
-    const api = attachRuntime(course.version, course.id, item.id, attempt?.cmi ?? null);
+    let closed = false;
+    const version = course.version;
+    const courseKey = course.id;
+    const currentItemId = item.id;
+    const saved = savedCmi.current.get(currentItemId) ?? attempt?.cmi ?? null;
+    const opening = normalizeCommit(saved, version);
+    setElapsed(0);
+    setLive({
+      completion: opening.completion,
+      success: opening.success,
+      scoreRaw: opening.scoreRaw,
+    });
+    const api = attachRuntime(version, courseKey, currentItemId, saved);
+    const remember = (snapshot: Record<string, unknown>) => {
+      savedCmi.current.set(currentItemId, snapshot);
+      setCourse((current) =>
+        current && current.id === courseKey
+          ? withRememberedAttempt(current, currentItemId, snapshot)
+          : current,
+      );
+    };
     const refresh = () => {
-      const normalized = normalizeCommit(api.renderCMIToJSONObject(), course.version);
+      const snapshot = api.renderCMIToJSONObject();
+      if (closed) return snapshot;
+      const normalized = normalizeCommit(snapshot, version);
       setLive({
         completion: normalized.completion,
         success: normalized.success,
         scoreRaw: normalized.scoreRaw,
       });
+      return snapshot;
+    };
+    const publish = () => {
+      remember(refresh());
     };
     const markStarted = () => {
       started = true;
@@ -58,16 +98,18 @@ export function PlayerView({ courseId, itemId }: { courseId: string; itemId: str
     api.on("LMSInitialize", markStarted);
     api.on("SetValue", refresh);
     api.on("LMSSetValue", refresh);
-    api.on("Commit", refresh);
-    api.on("LMSCommit", refresh);
-    api.on("CommitSuccess", refresh);
+    api.on("Commit", publish);
+    api.on("LMSCommit", publish);
+    api.on("CommitSuccess", publish);
     const frame = frameRef.current;
-    if (frame) frame.src = launchUrl(course.id, item.href);
+    if (frame) frame.src = launchUrl(courseKey, item.href);
     return () => {
+      closed = true;
       window.clearInterval(timer);
-      finishRuntime(api, course.version, started);
+      if (started) remember(api.renderCMIToJSONObject());
+      finishRuntime(api, version, started);
     };
-    // The attempt captured at launch is the resume snapshot. Later commits must not reload the SCO.
+    // The visit cache captured at launch is the resume snapshot. Later commits must not reload the SCO.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [course?.id, item?.id, course?.version]);
 
@@ -192,6 +234,36 @@ function splitHref(href: string): [string, string] {
 
 function itemPath(courseId: string, itemId: string): string {
   return `/play/${encodeURIComponent(courseId)}/${encodeURIComponent(itemId)}`;
+}
+
+function withRememberedAttempt(
+  course: Course,
+  itemId: string,
+  cmi: Record<string, unknown>,
+): Course {
+  const normalized = normalizeCommit(cmi, course.version);
+  const existing = course.attempts?.find((entry) => entry.itemId === itemId);
+  const next: Attempt = {
+    id: existing?.id ?? `${course.id}::${itemId}`,
+    courseId: course.id,
+    itemId,
+    cmi,
+    completion:
+      normalized.completion === "not attempted"
+        ? (existing?.completion ?? "not attempted")
+        : normalized.completion,
+    success: normalized.success ?? existing?.success ?? null,
+    scoreRaw: normalized.scoreRaw ?? existing?.scoreRaw ?? null,
+    scoreMin: normalized.scoreMin ?? existing?.scoreMin ?? null,
+    scoreMax: normalized.scoreMax ?? existing?.scoreMax ?? null,
+    progress: normalized.progress ?? existing?.progress ?? null,
+    accumulatedSeconds: existing?.accumulatedSeconds ?? 0,
+    pendingSessionSeconds: existing?.pendingSessionSeconds ?? 0,
+    lastLocation: normalized.lastLocation || existing?.lastLocation || "",
+    updatedAt: new Date().toISOString(),
+  };
+  const attempts = (course.attempts ?? []).filter((entry) => entry.itemId !== itemId).concat(next);
+  return { ...course, attempts };
 }
 
 function attemptFor(course: Course, itemId: string): Attempt | undefined {
