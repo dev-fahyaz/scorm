@@ -4,7 +4,7 @@ import { Activity } from "../../../../src/cmi/scorm2004/sequencing/activity";
 import { ActivityTree } from "../../../../src/cmi/scorm2004/sequencing/activity_tree";
 import {
   SequencingProcess,
-  SequencingRequestType
+  SequencingRequestType,
 } from "../../../../src/cmi/scorm2004/sequencing/sequencing_process";
 
 /**
@@ -97,7 +97,7 @@ describe("Complete Constrained Choice Support (SB.2.9)", () => {
 
       const result = sequencingProcess.sequencingRequestProcess(
         SequencingRequestType.CHOICE,
-        leaf1B.id
+        leaf1B.id,
       );
 
       expect(result.exception).toBeNull();
@@ -110,7 +110,7 @@ describe("Complete Constrained Choice Support (SB.2.9)", () => {
 
       const result = sequencingProcess.sequencingRequestProcess(
         SequencingRequestType.CHOICE,
-        leaf1C.id
+        leaf1C.id,
       );
 
       expect(result.exception).toBe("SB.2.9-7");
@@ -123,7 +123,7 @@ describe("Complete Constrained Choice Support (SB.2.9)", () => {
 
       const result = sequencingProcess.sequencingRequestProcess(
         SequencingRequestType.CHOICE,
-        leaf1A.id
+        leaf1A.id,
       );
 
       expect(result.exception).toBeNull();
@@ -137,7 +137,7 @@ describe("Complete Constrained Choice Support (SB.2.9)", () => {
 
       const result = sequencingProcess.sequencingRequestProcess(
         SequencingRequestType.CHOICE,
-        leaf1A.id
+        leaf1A.id,
       );
 
       expect(result.exception).toBeNull();
@@ -151,7 +151,7 @@ describe("Complete Constrained Choice Support (SB.2.9)", () => {
 
       const result = sequencingProcess.sequencingRequestProcess(
         SequencingRequestType.CHOICE,
-        leaf1A.id
+        leaf1A.id,
       );
 
       expect(result.exception).toBe("SB.2.9-7");
@@ -172,7 +172,7 @@ describe("Complete Constrained Choice Support (SB.2.9)", () => {
 
       const result = sequencingProcess.sequencingRequestProcess(
         SequencingRequestType.CHOICE,
-        leaf1A.id
+        leaf1A.id,
       );
 
       expect(result.exception).toBe("SB.2.9-5");
@@ -185,7 +185,7 @@ describe("Complete Constrained Choice Support (SB.2.9)", () => {
 
       const result = sequencingProcess.sequencingRequestProcess(
         SequencingRequestType.CHOICE,
-        leaf1B.id
+        leaf1B.id,
       );
 
       expect(result.exception).toBeNull();
@@ -198,7 +198,7 @@ describe("Complete Constrained Choice Support (SB.2.9)", () => {
 
       const result = sequencingProcess.sequencingRequestProcess(
         SequencingRequestType.CHOICE,
-        leaf1C.id
+        leaf1C.id,
       );
 
       expect(result.exception).toBe("SB.2.9-7");
@@ -219,7 +219,7 @@ describe("Complete Constrained Choice Support (SB.2.9)", () => {
 
       const result = sequencingProcess.sequencingRequestProcess(
         SequencingRequestType.CHOICE,
-        leaf1C.id
+        leaf1C.id,
       );
 
       expect(result.exception).toBe("SB.2.9-6");
@@ -234,7 +234,7 @@ describe("Complete Constrained Choice Support (SB.2.9)", () => {
 
       const result = sequencingProcess.sequencingRequestProcess(
         SequencingRequestType.CHOICE,
-        leaf1C.id
+        leaf1C.id,
       );
 
       // Still blocked by constrainChoice (can't skip forward)
@@ -249,7 +249,7 @@ describe("Complete Constrained Choice Support (SB.2.9)", () => {
 
       const result = sequencingProcess.sequencingRequestProcess(
         SequencingRequestType.CHOICE,
-        leaf1B.id
+        leaf1B.id,
       );
 
       expect(result.exception).toBeNull();
@@ -272,7 +272,7 @@ describe("Complete Constrained Choice Support (SB.2.9)", () => {
       // cluster1 (index 0) -> cluster3 (index 2) skips cluster2 (index 1)
       const result = sequencingProcess.sequencingRequestProcess(
         SequencingRequestType.CHOICE,
-        leaf3A.id
+        leaf3A.id,
       );
 
       expect(result.exception).toBe("SB.2.9-7");
@@ -286,7 +286,7 @@ describe("Complete Constrained Choice Support (SB.2.9)", () => {
       // Try to skip to leaf1C - should be blocked by cluster1 constrainChoice
       const result = sequencingProcess.sequencingRequestProcess(
         SequencingRequestType.CHOICE,
-        leaf1C.id
+        leaf1C.id,
       );
 
       expect(result.exception).toBe("SB.2.9-7");
@@ -305,7 +305,7 @@ describe("Complete Constrained Choice Support (SB.2.9)", () => {
       // Even though cluster1 has no constraints, root forwardOnly should block backward
       const result = sequencingProcess.sequencingRequestProcess(
         SequencingRequestType.CHOICE,
-        leaf1A.id
+        leaf1A.id,
       );
 
       expect(result.exception).toBe("SB.2.9-5");
@@ -342,7 +342,7 @@ describe("Complete Constrained Choice Support (SB.2.9)", () => {
 
       const result = sequencingProcess.sequencingRequestProcess(
         SequencingRequestType.CHOICE,
-        nestedLeaf.id
+        nestedLeaf.id,
       );
 
       // Should be blocked - can't skip from leaf1A to nestedLeaf (beyond next sibling)
@@ -357,7 +357,7 @@ describe("Complete Constrained Choice Support (SB.2.9)", () => {
 
       const result = sequencingProcess.sequencingRequestProcess(
         SequencingRequestType.CHOICE,
-        nestedLeaf.id
+        nestedLeaf.id,
       );
 
       // nestedCluster is next sibling after leaf1C, so this should work
@@ -373,7 +373,7 @@ describe("Complete Constrained Choice Support (SB.2.9)", () => {
 
       const result = sequencingProcess.sequencingRequestProcess(
         SequencingRequestType.CHOICE,
-        leaf1A.id
+        leaf1A.id,
       );
 
       expect(result.exception).toBeNull();
@@ -386,7 +386,7 @@ describe("Complete Constrained Choice Support (SB.2.9)", () => {
 
       const result = sequencingProcess.sequencingRequestProcess(
         SequencingRequestType.CHOICE,
-        leaf1A.id
+        leaf1A.id,
       );
 
       expect(result.exception).toBeNull();
@@ -399,7 +399,7 @@ describe("Complete Constrained Choice Support (SB.2.9)", () => {
 
       const result = sequencingProcess.sequencingRequestProcess(
         SequencingRequestType.CHOICE,
-        leaf1A.id
+        leaf1A.id,
       );
 
       expect(result.exception).toBeNull();
@@ -413,7 +413,7 @@ describe("Complete Constrained Choice Support (SB.2.9)", () => {
 
       const result = sequencingProcess.sequencingRequestProcess(
         SequencingRequestType.CHOICE,
-        leaf1C.id
+        leaf1C.id,
       );
 
       expect(result.exception).toBeNull();
@@ -428,7 +428,7 @@ describe("Complete Constrained Choice Support (SB.2.9)", () => {
 
       const result = sequencingProcess.sequencingRequestProcess(
         SequencingRequestType.CHOICE,
-        leaf1A.id
+        leaf1A.id,
       );
 
       expect(result.exception).toBe("SB.2.9-5");
@@ -443,7 +443,7 @@ describe("Complete Constrained Choice Support (SB.2.9)", () => {
 
       const result = sequencingProcess.sequencingRequestProcess(
         SequencingRequestType.CHOICE,
-        leaf1C.id
+        leaf1C.id,
       );
 
       expect(result.exception).toBe("SB.2.9-6");
@@ -456,7 +456,7 @@ describe("Complete Constrained Choice Support (SB.2.9)", () => {
 
       const result = sequencingProcess.sequencingRequestProcess(
         SequencingRequestType.CHOICE,
-        leaf1C.id
+        leaf1C.id,
       );
 
       expect(result.exception).toBe("SB.2.9-7");
@@ -472,7 +472,7 @@ describe("Complete Constrained Choice Support (SB.2.9)", () => {
 
       const result = sequencingProcess.sequencingRequestProcess(
         SequencingRequestType.CHOICE,
-        leaf2A.id
+        leaf2A.id,
       );
 
       expect(result.exception).toBeNull();
@@ -487,7 +487,7 @@ describe("Complete Constrained Choice Support (SB.2.9)", () => {
 
       const result = sequencingProcess.sequencingRequestProcess(
         SequencingRequestType.CHOICE,
-        leaf3A.id
+        leaf3A.id,
       );
 
       // Should be blocked - can't skip from cluster1 to cluster3
@@ -503,7 +503,7 @@ describe("Complete Constrained Choice Support (SB.2.9)", () => {
 
       const result = sequencingProcess.sequencingRequestProcess(
         SequencingRequestType.CHOICE,
-        leaf2A.id
+        leaf2A.id,
       );
 
       // Next cluster is allowed by root constrainChoice
@@ -523,7 +523,7 @@ describe("Complete Constrained Choice Support (SB.2.9)", () => {
       // ForwardOnly should prevent backward even to completed
       const result = sequencingProcess.sequencingRequestProcess(
         SequencingRequestType.CHOICE,
-        leaf1A.id
+        leaf1A.id,
       );
 
       expect(result.exception).toBe("SB.2.9-5");
@@ -537,7 +537,7 @@ describe("Complete Constrained Choice Support (SB.2.9)", () => {
 
       const result = sequencingProcess.sequencingRequestProcess(
         SequencingRequestType.CHOICE,
-        leaf1B.id
+        leaf1B.id,
       );
 
       expect(result.exception).toBeNull();
@@ -553,7 +553,7 @@ describe("Complete Constrained Choice Support (SB.2.9)", () => {
       // ConstrainChoice prevents skipping even in forward direction
       const result = sequencingProcess.sequencingRequestProcess(
         SequencingRequestType.CHOICE,
-        leaf1C.id
+        leaf1C.id,
       );
 
       expect(result.exception).toBe("SB.2.9-7");
@@ -573,7 +573,7 @@ describe("Complete Constrained Choice Support (SB.2.9)", () => {
 
       const result = sequencingProcess.sequencingRequestProcess(
         SequencingRequestType.CHOICE,
-        leaf1A.id
+        leaf1A.id,
       );
 
       expect(result.exception).toBeNull();
@@ -588,7 +588,7 @@ describe("Complete Constrained Choice Support (SB.2.9)", () => {
 
       const result = sequencingProcess.sequencingRequestProcess(
         SequencingRequestType.CHOICE,
-        leaf1A.id
+        leaf1A.id,
       );
 
       expect(result.exception).toBe("SB.2.9-7");
@@ -607,7 +607,7 @@ describe("Complete Constrained Choice Support (SB.2.9)", () => {
 
       const result = sequencingProcess.sequencingRequestProcess(
         SequencingRequestType.CHOICE,
-        leaf1B.id
+        leaf1B.id,
       );
 
       expect(result.exception).toBeNull();
@@ -622,7 +622,7 @@ describe("Complete Constrained Choice Support (SB.2.9)", () => {
 
       const result = sequencingProcess.sequencingRequestProcess(
         SequencingRequestType.CHOICE,
-        leaf1B.id
+        leaf1B.id,
       );
 
       expect(result.exception).toBe("SB.2.9-4");

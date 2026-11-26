@@ -95,21 +95,87 @@ describe("SCORM package import", () => {
     await expect(parsePackage(notZip)).rejects.toThrow(/not a valid ZIP/);
   });
 
-  it("detects SCORM 2004 and warns about sequencing", async () => {
-    const xml = manifest12
-      .replace(
-        "<schemaversion>1.2</schemaversion>",
-        "<schemaversion>2004 4th Edition</schemaversion>",
-      )
-      .replace(
-        "<title>Welcome</title>",
-        '<title>Welcome</title><sequencing><controlMode choice="true"/></sequencing>',
-      );
+  it("keeps multi-SCO SCORM 2004 flat when the manifest has no sequencing", async () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<manifest identifier="course">
+  <metadata><schemaversion>2004 4th Edition</schemaversion></metadata>
+  <organizations default="org">
+    <organization identifier="org">
+      <title>Flat multi</title>
+      <item identifier="a" identifierref="res1"><title>One</title></item>
+      <item identifier="b" identifierref="res2"><title>Two</title></item>
+    </organization>
+  </organizations>
+  <resources>
+    <resource identifier="res1" href="a.html"><file href="a.html"/></resource>
+    <resource identifier="res2" href="b.html"><file href="b.html"/></resource>
+  </resources>
+</manifest>`;
     const parsed = await parsePackage(
-      zip({ "imsmanifest.xml": xml, "index.html": "<html></html>" }),
+      zip({
+        "imsmanifest.xml": xml,
+        "a.html": "<html>a</html>",
+        "b.html": "<html>b</html>",
+      }),
     );
     expect(parsed.version).toBe("2004");
-    expect(parsed.warnings.some((warning) => warning.includes("sequencing"))).toBe(true);
+    expect(parsed.hasSequencing).toBeFalsy();
+    expect(parsed.activityTree).toBeUndefined();
+    expect(parsed.items).toHaveLength(2);
+  });
+
+  it("detects SCORM 2004 and builds an activity tree from sequencing", async () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<manifest identifier="course" xmlns:imsss="http://www.imsglobal.org/xsd/imsss">
+  <metadata><schemaversion>2004 4th Edition</schemaversion></metadata>
+  <organizations default="org">
+    <organization identifier="org">
+      <title>Sequenced course</title>
+      <item identifier="module">
+        <title>Module</title>
+        <item identifier="sco1" identifierref="res1">
+          <title>Intro</title>
+          <imsss:sequencing>
+            <imsss:controlMode choice="false" flow="true" forwardOnly="true"/>
+          </imsss:sequencing>
+        </item>
+        <item identifier="sco2" identifierref="res2">
+          <title>Quiz</title>
+          <imsss:sequencing>
+            <imsss:sequencingRules>
+              <imsss:preConditionRule>
+                <imsss:ruleConditions>
+                  <imsss:ruleCondition condition="satisfied" referencedObjective="OBJ1"/>
+                </imsss:ruleConditions>
+                <imsss:ruleAction action="skip"/>
+              </imsss:preConditionRule>
+            </imsss:sequencingRules>
+          </imsss:sequencing>
+        </item>
+      </item>
+    </organization>
+  </organizations>
+  <resources>
+    <resource identifier="res1" adlcp:scormType="sco" href="a.html"><file href="a.html"/></resource>
+    <resource identifier="res2" adlcp:scormType="sco" href="b.html"><file href="b.html"/></resource>
+  </resources>
+</manifest>`;
+    const parsed = await parsePackage(
+      zip({
+        "imsmanifest.xml": xml,
+        "a.html": "<html>a</html>",
+        "b.html": "<html>b</html>",
+      }),
+    );
+    expect(parsed.version).toBe("2004");
+    expect(parsed.hasSequencing).toBe(true);
+    expect(parsed.activityTree?.id).toBe("org");
+    expect(parsed.activityTree?.sequencingControls).toMatchObject({ choice: true, flow: true });
+    expect(parsed.items).toHaveLength(2);
+    const quiz = parsed.activityTree?.children?.[0]?.children?.[1];
+    expect(quiz?.id).toBe("sco2");
+    expect(quiz?.sequencingRules?.preConditionRules?.[0]?.action).toBe("skip");
+    expect(parsed.warnings.some((warning) => warning.includes("launch directly"))).toBe(false);
   });
 
   it("rejects a package with no manifest at the root before extracting", async () => {

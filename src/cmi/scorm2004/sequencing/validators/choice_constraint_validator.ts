@@ -35,7 +35,7 @@ export interface ChoiceValidationOptions {
 export class ChoiceConstraintValidator {
   constructor(
     private activityTree: ActivityTree,
-    private treeQueries: ActivityTreeQueries
+    private treeQueries: ActivityTreeQueries,
   ) {}
 
   /**
@@ -48,7 +48,7 @@ export class ChoiceConstraintValidator {
   public validateChoice(
     currentActivity: Activity | null,
     targetActivity: Activity,
-    options: ChoiceValidationOptions = {}
+    options: ChoiceValidationOptions = {},
   ): ConstraintValidationResult {
     // Step 1: Basic tree membership check
     if (!this.treeQueries.isInTree(targetActivity)) {
@@ -80,10 +80,7 @@ export class ChoiceConstraintValidator {
     }
 
     // Step 6: Validate constraints at all ancestor levels
-    const ancestorValidation = this.validateAncestorConstraints(
-      currentActivity,
-      targetActivity
-    );
+    const ancestorValidation = this.validateAncestorConstraints(currentActivity, targetActivity);
     if (!ancestorValidation.valid) {
       return ancestorValidation;
     }
@@ -99,10 +96,7 @@ export class ChoiceConstraintValidator {
   public validatePathToRoot(targetActivity: Activity): ConstraintValidationResult {
     // @spec SCORM 2004 SN 4th Ed. SB.2.9: the target's immediate parent
     // controls choice among that parent's children.
-    if (
-      targetActivity.parent &&
-      !targetActivity.parent.sequencingControls.choice
-    ) {
+    if (targetActivity.parent && !targetActivity.parent.sequencingControls.choice) {
       return { valid: false, exception: "SB.2.9-5" };
     }
 
@@ -137,7 +131,7 @@ export class ChoiceConstraintValidator {
    */
   public validateChoiceExit(
     currentActivity: Activity,
-    targetActivity: Activity
+    targetActivity: Activity,
   ): ConstraintValidationResult {
     // Walk from current activity to root, checking for choiceExit=false
     let currentAncestor: Activity | null = currentActivity.parent;
@@ -168,7 +162,7 @@ export class ChoiceConstraintValidator {
    */
   public validateAncestorConstraints(
     currentActivity: Activity,
-    targetActivity: Activity
+    targetActivity: Activity,
   ): ConstraintValidationResult {
     let ancestorActivity: Activity | null = targetActivity.parent;
 
@@ -176,7 +170,7 @@ export class ChoiceConstraintValidator {
       const validation = this.validateConstraintsAtLevel(
         ancestorActivity,
         currentActivity,
-        targetActivity
+        targetActivity,
       );
       if (!validation.valid) {
         return validation;
@@ -197,7 +191,7 @@ export class ChoiceConstraintValidator {
   private validateConstraintsAtLevel(
     ancestor: Activity,
     currentActivity: Activity,
-    targetActivity: Activity
+    targetActivity: Activity,
   ): ConstraintValidationResult {
     // Find which children of this ancestor contain current and target
     const targetChild = this.treeQueries.findChildInPath(ancestor, targetActivity);
@@ -301,7 +295,7 @@ export class ChoiceConstraintValidator {
    */
   public validateFlowConstraints(
     fromActivity: Activity,
-    children: Activity[]
+    children: Activity[],
   ): { valid: boolean; validChildren: Activity[] } {
     const validChildren: Activity[] = [];
 
@@ -313,7 +307,7 @@ export class ChoiceConstraintValidator {
 
     return {
       valid: validChildren.length > 0,
-      validChildren
+      validChildren,
     };
   }
 
@@ -376,8 +370,10 @@ export class ChoiceConstraintValidator {
       // forwardOnly check
       if (parent.sequencingControls.forwardOnly && targetIndex < currentIndex) {
         // Allow if previously completed
-        if (activity.completionStatus === "completed" ||
-            (activity.completionStatus as string) === "passed") {
+        if (
+          activity.completionStatus === "completed" ||
+          (activity.completionStatus as string) === "passed"
+        ) {
           return true;
         }
         return false;
@@ -395,7 +391,7 @@ export class ChoiceConstraintValidator {
       if (targetIndex < currentIndex) {
         return (
           (activity.completionStatus === "completed" ||
-           (activity.completionStatus as string) === "passed") &&
+            (activity.completionStatus as string) === "passed") &&
           this.isAvailableForChoice(activity)
         );
       }
@@ -406,8 +402,8 @@ export class ChoiceConstraintValidator {
       return (
         this.isAvailableForChoice(activity) &&
         (activity.completionStatus === "completed" ||
-         activity.completionStatus === "unknown" ||
-         activity.completionStatus === "incomplete")
+          activity.completionStatus === "unknown" ||
+          activity.completionStatus === "incomplete")
       );
     }
   }
@@ -538,8 +534,10 @@ export class ChoiceConstraintValidator {
     // ForwardOnly: only allow activities at or after current position
     if (targetIndex < currentIndex) {
       // Allow if completed and choice-enabled
-      if (activity.completionStatus === "completed" ||
-          (activity.completionStatus as string) === "passed") {
+      if (
+        activity.completionStatus === "completed" ||
+        (activity.completionStatus as string) === "passed"
+      ) {
         if (activity.sequencingControls && activity.sequencingControls.choice) {
           return true;
         }
@@ -591,8 +589,7 @@ export class ChoiceConstraintValidator {
    */
   public hasAttemptLimitViolation(targetActivity: Activity): boolean {
     return !!(
-      targetActivity.attemptLimit &&
-      targetActivity.attemptCount >= targetActivity.attemptLimit
+      targetActivity.attemptLimit && targetActivity.attemptCount >= targetActivity.attemptLimit
     );
   }
 }

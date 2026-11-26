@@ -78,6 +78,45 @@ app.post("/api/courses/:courseId/reset", (req, res) => {
   res.status(204).end();
 });
 
+app.get("/api/scorm/courses/:courseId/sequencing-state", (req, res) => {
+  const state = store.getSequencingState(req.params.courseId);
+  if (state == null && !store.get(req.params.courseId)) {
+    res.status(404).json({ error: "That course is not in the library." });
+    return;
+  }
+  res.json({ state });
+});
+
+app.put(
+  "/api/scorm/courses/:courseId/sequencing-state",
+  express.text({ type: "*/*", limit: "2mb" }),
+  (req, res) => {
+    const raw = typeof req.body === "string" ? req.body : "";
+    let state = raw;
+    if (raw.trim().startsWith("{")) {
+      try {
+        const parsed = JSON.parse(raw) as { state?: string };
+        if (typeof parsed.state === "string") state = parsed.state;
+      } catch {
+        /* treat body as opaque state string */
+      }
+    }
+    if (!store.saveSequencingState(req.params.courseId, state)) {
+      res.status(404).json({ error: "That course is not in the library." });
+      return;
+    }
+    res.json({ ok: true });
+  },
+);
+
+app.delete("/api/scorm/courses/:courseId/sequencing-state", (req, res) => {
+  if (!store.clearSequencingState(req.params.courseId)) {
+    res.status(404).json({ error: "That course is not in the library." });
+    return;
+  }
+  res.status(204).end();
+});
+
 app.post(
   "/api/scorm/attempts/:attemptId/commit",
   express.text({ type: "*/*", limit: "2mb" }),

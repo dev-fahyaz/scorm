@@ -58,10 +58,12 @@ export function Library() {
         <p>Upload a SCORM 1.2 or 2004 package. Progress, score, and time stay on this player.</p>
       </div>
       <label
-        className={dragging ? "dropzone dragging" : "dropzone"}
+        className={["dropzone", dragging ? "dragging" : "", busy ? "busy" : ""]
+          .filter(Boolean)
+          .join(" ")}
         onDragOver={(event) => {
           event.preventDefault();
-          setDragging(true);
+          if (!busy) setDragging(true);
         }}
         onDragLeave={() => setDragging(false)}
         onDrop={onDrop}
@@ -76,7 +78,7 @@ export function Library() {
             input.value = "";
           }}
         />
-        <strong>{progressLabel(progress)}</strong>
+        <strong className="dropzone-title">{progressLabel(progress)}</strong>
         {progress ? (
           <div className="bar upload-bar" aria-hidden="true">
             <span
@@ -85,7 +87,12 @@ export function Library() {
             />
           </div>
         ) : (
-          <span>or choose a file. The manifest must sit at the root of the archive.</span>
+          <>
+            <span className="dropzone-cta">Choose file</span>
+            <span className="dropzone-hint">
+              Or drop a ZIP here. The manifest must sit at the root of the archive.
+            </span>
+          </>
         )}
       </label>
       {error ? <p className="banner">{error}</p> : null}

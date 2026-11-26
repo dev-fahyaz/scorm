@@ -66,7 +66,9 @@ describe("SCORM 2004 Interactions Pattern Validation", () => {
         // Verbatim spec example: order_matters property delimiter, both records
         // omit the step_name ("[.]<answer>").
         correctResponse.pattern = "{order_matters=false}[.]drink coffee[,][.]eat cereal";
-        expect(correctResponse.pattern).toBe("{order_matters=false}[.]drink coffee[,][.]eat cereal");
+        expect(correctResponse.pattern).toBe(
+          "{order_matters=false}[.]drink coffee[,][.]eat cereal",
+        );
       });
 
       it("should accept a record with step_name only (empty step_answer)", () => {

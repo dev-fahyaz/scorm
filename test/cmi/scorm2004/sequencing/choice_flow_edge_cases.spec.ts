@@ -3,7 +3,7 @@ import { Activity } from "../../../../src/cmi/scorm2004/sequencing/activity";
 import { ActivityTree } from "../../../../src/cmi/scorm2004/sequencing/activity_tree";
 import {
   NavigationRequestType,
-  OverallSequencingProcess
+  OverallSequencingProcess,
 } from "../../../../src/cmi/scorm2004/sequencing/overall_sequencing_process";
 import { SequencingProcess } from "../../../../src/cmi/scorm2004/sequencing/sequencing_process";
 import { RollupProcess } from "../../../../src/cmi/scorm2004/sequencing/rollup_process";
@@ -50,28 +50,18 @@ describe("Choice Flow Subprocess Edge Cases (REQ-NAV-009)", () => {
       const tree = new ActivityTree(root);
       const sequencingProcess = new SequencingProcess(tree);
       const rollupProcess = new RollupProcess();
-      const process = new OverallSequencingProcess(
-        tree,
-        sequencingProcess,
-        rollupProcess
-      );
+      const process = new OverallSequencingProcess(tree, sequencingProcess, rollupProcess);
 
       // Set current activity in cluster2/subCluster
       tree.currentActivity = leaf2;
 
       // Choice to leaf3 (sibling in same subCluster) should be valid
-      const result1 = process.processNavigationRequest(
-        NavigationRequestType.CHOICE,
-        "leaf3"
-      );
+      const result1 = process.processNavigationRequest(NavigationRequestType.CHOICE, "leaf3");
       expect(result1.valid).toBe(true);
       expect(result1.targetActivity?.id).toBe("leaf3");
 
       // Choice to leaf1 (outside cluster2 branch) should be invalid with constrainChoice at root
-      const result2 = process.processNavigationRequest(
-        NavigationRequestType.CHOICE,
-        "leaf1"
-      );
+      const result2 = process.processNavigationRequest(NavigationRequestType.CHOICE, "leaf1");
       expect(result2.valid).toBe(false);
       expect(result2.exception).toBe("NB.2.1-11");
     });
@@ -106,27 +96,17 @@ describe("Choice Flow Subprocess Edge Cases (REQ-NAV-009)", () => {
       const tree = new ActivityTree(root);
       const sequencingProcess = new SequencingProcess(tree);
       const rollupProcess = new RollupProcess();
-      const process = new OverallSequencingProcess(
-        tree,
-        sequencingProcess,
-        rollupProcess
-      );
+      const process = new OverallSequencingProcess(tree, sequencingProcess, rollupProcess);
 
       // Set current in level1 branch
       tree.currentActivity = leafA;
 
       // Choice within constrained branch (leafA to leafB, both under level1)
-      const result1 = process.processNavigationRequest(
-        NavigationRequestType.CHOICE,
-        "leafB"
-      );
+      const result1 = process.processNavigationRequest(NavigationRequestType.CHOICE, "leafB");
       expect(result1.valid).toBe(true);
 
       // Choice outside constrained branch (leafC is outside level1)
-      const result2 = process.processNavigationRequest(
-        NavigationRequestType.CHOICE,
-        "leafC"
-      );
+      const result2 = process.processNavigationRequest(NavigationRequestType.CHOICE, "leafC");
       expect(result2.valid).toBe(false);
       expect(result2.exception).toBe("NB.2.1-11");
     });
@@ -158,19 +138,12 @@ describe("Choice Flow Subprocess Edge Cases (REQ-NAV-009)", () => {
       const tree = new ActivityTree(root);
       const sequencingProcess = new SequencingProcess(tree);
       const rollupProcess = new RollupProcess();
-      const process = new OverallSequencingProcess(
-        tree,
-        sequencingProcess,
-        rollupProcess
-      );
+      const process = new OverallSequencingProcess(tree, sequencingProcess, rollupProcess);
 
       tree.currentActivity = leaf1;
 
       // Choice across branches should be valid
-      const result = process.processNavigationRequest(
-        NavigationRequestType.CHOICE,
-        "leaf2"
-      );
+      const result = process.processNavigationRequest(NavigationRequestType.CHOICE, "leaf2");
       expect(result.valid).toBe(true);
       expect(result.targetActivity?.id).toBe("leaf2");
     });
@@ -181,20 +154,13 @@ describe("Choice Flow Subprocess Edge Cases (REQ-NAV-009)", () => {
       const tree = createLinearTree(5);
       const sequencingProcess = new SequencingProcess(tree);
       const rollupProcess = new RollupProcess();
-      const process = new OverallSequencingProcess(
-        tree,
-        sequencingProcess,
-        rollupProcess
-      );
+      const process = new OverallSequencingProcess(tree, sequencingProcess, rollupProcess);
 
       const activity3 = tree.getActivity("activity3");
       tree.currentActivity = activity3;
 
       // Choice to previous activity (forwardOnly defaults to false)
-      const result = process.processNavigationRequest(
-        NavigationRequestType.CHOICE,
-        "activity2"
-      );
+      const result = process.processNavigationRequest(NavigationRequestType.CHOICE, "activity2");
 
       expect(result.valid).toBe(true);
       expect(result.targetActivity?.id).toBe("activity2");
@@ -208,20 +174,13 @@ describe("Choice Flow Subprocess Edge Cases (REQ-NAV-009)", () => {
 
       const sequencingProcess = new SequencingProcess(tree);
       const rollupProcess = new RollupProcess();
-      const process = new OverallSequencingProcess(
-        tree,
-        sequencingProcess,
-        rollupProcess
-      );
+      const process = new OverallSequencingProcess(tree, sequencingProcess, rollupProcess);
 
       const activity3 = tree.getActivity("activity3");
       tree.currentActivity = activity3;
 
       // Choice to previous activity should be blocked
-      const result = process.processNavigationRequest(
-        NavigationRequestType.CHOICE,
-        "activity2"
-      );
+      const result = process.processNavigationRequest(NavigationRequestType.CHOICE, "activity2");
 
       expect(result.valid).toBe(false);
       expect(result.exception).toBe("NB.2.1-8");
@@ -253,19 +212,12 @@ describe("Choice Flow Subprocess Edge Cases (REQ-NAV-009)", () => {
       const tree = new ActivityTree(root);
       const sequencingProcess = new SequencingProcess(tree);
       const rollupProcess = new RollupProcess();
-      const process = new OverallSequencingProcess(
-        tree,
-        sequencingProcess,
-        rollupProcess
-      );
+      const process = new OverallSequencingProcess(tree, sequencingProcess, rollupProcess);
 
       tree.currentActivity = leaf2;
 
       // Backward choice within cluster1 (no forwardOnly constraint)
-      const result = process.processNavigationRequest(
-        NavigationRequestType.CHOICE,
-        "leaf1"
-      );
+      const result = process.processNavigationRequest(NavigationRequestType.CHOICE, "leaf1");
 
       expect(result.valid).toBe(true);
       expect(result.targetActivity?.id).toBe("leaf1");
@@ -294,19 +246,12 @@ describe("Choice Flow Subprocess Edge Cases (REQ-NAV-009)", () => {
       const tree = new ActivityTree(root);
       const sequencingProcess = new SequencingProcess(tree);
       const rollupProcess = new RollupProcess();
-      const process = new OverallSequencingProcess(
-        tree,
-        sequencingProcess,
-        rollupProcess
-      );
+      const process = new OverallSequencingProcess(tree, sequencingProcess, rollupProcess);
 
       tree.currentActivity = leaf3;
 
       // Backward choice should be blocked by cluster's forwardOnly
-      const result = process.processNavigationRequest(
-        NavigationRequestType.CHOICE,
-        "leaf1"
-      );
+      const result = process.processNavigationRequest(NavigationRequestType.CHOICE, "leaf1");
 
       expect(result.valid).toBe(false);
       expect(result.exception).toBe("NB.2.1-8");
@@ -318,20 +263,13 @@ describe("Choice Flow Subprocess Edge Cases (REQ-NAV-009)", () => {
       const tree = createLinearTree(5);
       const sequencingProcess = new SequencingProcess(tree);
       const rollupProcess = new RollupProcess();
-      const process = new OverallSequencingProcess(
-        tree,
-        sequencingProcess,
-        rollupProcess
-      );
+      const process = new OverallSequencingProcess(tree, sequencingProcess, rollupProcess);
 
       const activity1 = tree.getActivity("activity1");
       tree.currentActivity = activity1;
 
       // Choice to last activity from first (no flow enabled, so choice should fail)
-      const result = process.processNavigationRequest(
-        NavigationRequestType.CHOICE,
-        "activity5"
-      );
+      const result = process.processNavigationRequest(NavigationRequestType.CHOICE, "activity5");
 
       // Without flow enabled, we can't skip activities in a linear tree
       // This test verifies boundary handling
@@ -342,20 +280,13 @@ describe("Choice Flow Subprocess Edge Cases (REQ-NAV-009)", () => {
       const tree = createLinearTree(5);
       const sequencingProcess = new SequencingProcess(tree);
       const rollupProcess = new RollupProcess();
-      const process = new OverallSequencingProcess(
-        tree,
-        sequencingProcess,
-        rollupProcess
-      );
+      const process = new OverallSequencingProcess(tree, sequencingProcess, rollupProcess);
 
       const activity5 = tree.getActivity("activity5");
       tree.currentActivity = activity5;
 
       // Choice to first activity from last
-      const result = process.processNavigationRequest(
-        NavigationRequestType.CHOICE,
-        "activity1"
-      );
+      const result = process.processNavigationRequest(NavigationRequestType.CHOICE, "activity1");
 
       expect(result.valid).toBe(true);
       expect(result.targetActivity?.id).toBe("activity1");
@@ -365,20 +296,13 @@ describe("Choice Flow Subprocess Edge Cases (REQ-NAV-009)", () => {
       const tree = createLinearTree(5);
       const sequencingProcess = new SequencingProcess(tree);
       const rollupProcess = new RollupProcess();
-      const process = new OverallSequencingProcess(
-        tree,
-        sequencingProcess,
-        rollupProcess
-      );
+      const process = new OverallSequencingProcess(tree, sequencingProcess, rollupProcess);
 
       // No current activity
       tree.currentActivity = null;
 
       // Choice should still work
-      const result = process.processNavigationRequest(
-        NavigationRequestType.CHOICE,
-        "activity3"
-      );
+      const result = process.processNavigationRequest(NavigationRequestType.CHOICE, "activity3");
 
       expect(result.valid).toBe(true);
       expect(result.targetActivity?.id).toBe("activity3");
@@ -388,19 +312,12 @@ describe("Choice Flow Subprocess Edge Cases (REQ-NAV-009)", () => {
       const tree = createLinearTree(5);
       const sequencingProcess = new SequencingProcess(tree);
       const rollupProcess = new RollupProcess();
-      const process = new OverallSequencingProcess(
-        tree,
-        sequencingProcess,
-        rollupProcess
-      );
+      const process = new OverallSequencingProcess(tree, sequencingProcess, rollupProcess);
 
       const activity3 = tree.getActivity("activity3");
       tree.currentActivity = activity3;
 
-      const result = process.processNavigationRequest(
-        NavigationRequestType.CHOICE,
-        "nonExistent"
-      );
+      const result = process.processNavigationRequest(NavigationRequestType.CHOICE, "nonExistent");
 
       expect(result.valid).toBe(false);
       expect(result.exception).toBe("NB.2.1-10");
@@ -410,19 +327,12 @@ describe("Choice Flow Subprocess Edge Cases (REQ-NAV-009)", () => {
       const tree = createLinearTree(5);
       const sequencingProcess = new SequencingProcess(tree);
       const rollupProcess = new RollupProcess();
-      const process = new OverallSequencingProcess(
-        tree,
-        sequencingProcess,
-        rollupProcess
-      );
+      const process = new OverallSequencingProcess(tree, sequencingProcess, rollupProcess);
 
       const activity3 = tree.getActivity("activity3");
       tree.currentActivity = activity3;
 
-      const result = process.processNavigationRequest(
-        NavigationRequestType.CHOICE,
-        ""
-      );
+      const result = process.processNavigationRequest(NavigationRequestType.CHOICE, "");
 
       expect(result.valid).toBe(false);
       expect(result.exception).toBe("NB.2.1-9");
@@ -445,21 +355,14 @@ describe("Choice Flow Subprocess Edge Cases (REQ-NAV-009)", () => {
       const tree = new ActivityTree(root);
       const sequencingProcess = new SequencingProcess(tree);
       const rollupProcess = new RollupProcess();
-      const process = new OverallSequencingProcess(
-        tree,
-        sequencingProcess,
-        rollupProcess
-      );
+      const process = new OverallSequencingProcess(tree, sequencingProcess, rollupProcess);
 
       tree.currentActivity = leaf2;
 
       // Try to choose root (cluster activity)
       // Choice navigation doesn't typically target non-leaf activities
       // This will likely fail as root is the activity tree itself
-      const result = process.processNavigationRequest(
-        NavigationRequestType.CHOICE,
-        "root"
-      );
+      const result = process.processNavigationRequest(NavigationRequestType.CHOICE, "root");
 
       // Root as a cluster - behavior depends on implementation
       // May be invalid as you can't directly choose a cluster in navigation
@@ -496,33 +399,20 @@ describe("Choice Flow Subprocess Edge Cases (REQ-NAV-009)", () => {
       const tree = new ActivityTree(root);
       const sequencingProcess = new SequencingProcess(tree);
       const rollupProcess = new RollupProcess();
-      const process = new OverallSequencingProcess(
-        tree,
-        sequencingProcess,
-        rollupProcess
-      );
+      const process = new OverallSequencingProcess(tree, sequencingProcess, rollupProcess);
 
       // Set current activity in clusterB branch
       tree.currentActivity = leafB;
 
       // Choice within same branch (to itself) should work
-      const result1 = process.processNavigationRequest(
-        NavigationRequestType.CHOICE,
-        "leafB"
-      );
+      const result1 = process.processNavigationRequest(NavigationRequestType.CHOICE, "leafB");
       expect(result1.valid).toBe(true);
 
       // Choice outside clusterB branch should be blocked by constrainChoice
-      const result2 = process.processNavigationRequest(
-        NavigationRequestType.CHOICE,
-        "leafA"
-      );
+      const result2 = process.processNavigationRequest(NavigationRequestType.CHOICE, "leafA");
       expect(result2.valid).toBe(false);
 
-      const result3 = process.processNavigationRequest(
-        NavigationRequestType.CHOICE,
-        "leafC"
-      );
+      const result3 = process.processNavigationRequest(NavigationRequestType.CHOICE, "leafC");
       expect(result3.valid).toBe(false);
     });
 
@@ -549,27 +439,17 @@ describe("Choice Flow Subprocess Edge Cases (REQ-NAV-009)", () => {
       const tree = new ActivityTree(root);
       const sequencingProcess = new SequencingProcess(tree);
       const rollupProcess = new RollupProcess();
-      const process = new OverallSequencingProcess(
-        tree,
-        sequencingProcess,
-        rollupProcess
-      );
+      const process = new OverallSequencingProcess(tree, sequencingProcess, rollupProcess);
 
       tree.currentActivity = leaf2;
 
       // Backward choice blocked by forwardOnly
-      const result1 = process.processNavigationRequest(
-        NavigationRequestType.CHOICE,
-        "leaf1"
-      );
+      const result1 = process.processNavigationRequest(NavigationRequestType.CHOICE, "leaf1");
       expect(result1.valid).toBe(false);
 
       // Forward choice within cluster, but constrainChoice also blocks skipping
       // With both constrainChoice and forwardOnly, only sequential forward movement is allowed
-      const result2 = process.processNavigationRequest(
-        NavigationRequestType.CHOICE,
-        "leaf3"
-      );
+      const result2 = process.processNavigationRequest(NavigationRequestType.CHOICE, "leaf3");
       // May be blocked due to constrainChoice preventing skip ahead
       expect(result2).toBeDefined();
     });
@@ -580,11 +460,7 @@ describe("Choice Flow Subprocess Edge Cases (REQ-NAV-009)", () => {
       const tree = createLinearTree(5);
       const sequencingProcess = new SequencingProcess(tree);
       const rollupProcess = new RollupProcess();
-      const process = new OverallSequencingProcess(
-        tree,
-        sequencingProcess,
-        rollupProcess
-      );
+      const process = new OverallSequencingProcess(tree, sequencingProcess, rollupProcess);
 
       const activity3 = tree.getActivity("activity3");
       const activity4 = tree.getActivity("activity4");
@@ -596,10 +472,7 @@ describe("Choice Flow Subprocess Edge Cases (REQ-NAV-009)", () => {
         activity4.isAvailable = false;
       }
 
-      const result = process.processNavigationRequest(
-        NavigationRequestType.CHOICE,
-        "activity4"
-      );
+      const result = process.processNavigationRequest(NavigationRequestType.CHOICE, "activity4");
 
       // Choice to unavailable activity should be blocked
       expect(result.valid).toBe(false);
@@ -609,11 +482,7 @@ describe("Choice Flow Subprocess Edge Cases (REQ-NAV-009)", () => {
       const tree = createLinearTree(5);
       const sequencingProcess = new SequencingProcess(tree);
       const rollupProcess = new RollupProcess();
-      const process = new OverallSequencingProcess(
-        tree,
-        sequencingProcess,
-        rollupProcess
-      );
+      const process = new OverallSequencingProcess(tree, sequencingProcess, rollupProcess);
 
       const activity2 = tree.getActivity("activity2");
       const activity3 = tree.getActivity("activity3");
@@ -625,10 +494,7 @@ describe("Choice Flow Subprocess Edge Cases (REQ-NAV-009)", () => {
         activity3.isHiddenFromChoice = true;
       }
 
-      const result = process.processNavigationRequest(
-        NavigationRequestType.CHOICE,
-        "activity3"
-      );
+      const result = process.processNavigationRequest(NavigationRequestType.CHOICE, "activity3");
 
       // Choice to hidden activity should be blocked
       expect(result.valid).toBe(false);

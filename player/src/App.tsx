@@ -14,8 +14,9 @@ function readRoute(): Route {
   };
 }
 
-export function navigate(path: string): void {
-  window.history.pushState({}, "", path);
+export function navigate(path: string, replace = false): void {
+  if (replace) window.history.replaceState({}, "", path);
+  else window.history.pushState({}, "", path);
   window.dispatchEvent(new PopStateEvent("popstate"));
 }
 
@@ -29,7 +30,7 @@ export function App() {
   }, []);
 
   return (
-    <div className="app">
+    <div className={route.name === "player" ? "app playing" : "app"}>
       <header className="topbar">
         <button className="brand" type="button" onClick={() => navigate("/")}>
           <img className="mark" src="/logo.png" alt="" />

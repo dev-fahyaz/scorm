@@ -8,6 +8,7 @@ import {
   type CourseItem,
   type ParsedPackage,
 } from "./package";
+import { courseUsesSequencing } from "./sequencing";
 import { cmiOf, nextTime, normalizeCommit, totalSeconds, type ScormVersion } from "./normalize";
 
 export const SAMPLE_COURSE_ID = "aspire-sample";
@@ -16,6 +17,12 @@ export type CourseRecord = ParsedPackage & {
   id: string;
   builtin: boolean;
   createdAt: string;
+};
+
+export type SequencingStateRecord = {
+  courseId: string;
+  state: string;
+  updatedAt: string;
 };
 
 export type AttemptRecord = {
@@ -46,6 +53,7 @@ export type CourseSummary = {
 type Database = {
   courses: CourseRecord[];
   attempts: AttemptRecord[];
+  sequencingStates: SequencingStateRecord[];
 };
 
 function emptyAttempt(courseId: string, itemId: string): AttemptRecord {
@@ -134,7 +142,7 @@ export class CourseStore {
   list(): Array<CourseRecord & { summary: CourseSummary }> {
     const db = this.read();
     return db.courses.map((course) => ({
-      ...course,
+      ...withSequencingFlag(course),
       summary: summarize(
         course,
         db.attempts.filter((attempt) => attempt.courseId === course.id),
@@ -149,7 +157,11 @@ export class CourseStore {
     const course = db.courses.find((item) => item.id === courseId);
     if (!course) return null;
     const attempts = db.attempts.filter((attempt) => attempt.courseId === courseId);
-    return { ...course, attempts, summary: summarize(course, attempts) };
+    return {
+      ...withSequencingFlag(course),
+      attempts,
+      summary: summarize(course, attempts),
+    };
   }
 
   async importZip(zipPath: string): Promise<CourseRecord & { summary: CourseSummary }> {
@@ -175,6 +187,7 @@ export class CourseStore {
     const db = this.read();
     db.courses = db.courses.filter((item) => item.id !== courseId);
     db.attempts = db.attempts.filter((attempt) => attempt.courseId !== courseId);
+    db.sequencingStates = db.sequencingStates.filter((entry) => entry.courseId !== courseId);
     this.write(db);
     return true;
   }
@@ -183,6 +196,36 @@ export class CourseStore {
     if (!this.get(courseId)) return false;
     const db = this.read();
     db.attempts = db.attempts.filter((attempt) => attempt.courseId !== courseId);
+    db.sequencingStates = db.sequencingStates.filter((entry) => entry.courseId !== courseId);
+    this.write(db);
+    return true;
+  }
+
+  getSequencingState(courseId: string): string | null {
+    if (!this.get(courseId)) return null;
+    const db = this.read();
+    return db.sequencingStates.find((entry) => entry.courseId === courseId)?.state ?? null;
+  }
+
+  saveSequencingState(courseId: string, state: string): boolean {
+    if (!this.get(courseId)) return false;
+    const db = this.read();
+    const next: SequencingStateRecord = {
+      courseId,
+      state,
+      updatedAt: new Date().toISOString(),
+    };
+    db.sequencingStates = db.sequencingStates
+      .filter((entry) => entry.courseId !== courseId)
+      .concat(next);
+    this.write(db);
+    return true;
+  }
+
+  clearSequencingState(courseId: string): boolean {
+    if (!this.get(courseId)) return false;
+    const db = this.read();
+    db.sequencingStates = db.sequencingStates.filter((entry) => entry.courseId !== courseId);
     this.write(db);
     return true;
   }
@@ -248,21 +291,25 @@ export class CourseStore {
       version: parsed.version as ScormVersion,
       items: parsed.items,
       warnings: parsed.warnings,
+      hasSequencing: parsed.hasSequencing,
+      activityTree: parsed.activityTree,
+      collections: parsed.collections,
       builtin,
       createdAt: new Date().toISOString(),
     };
   }
 
   private read(): Database {
-    if (!existsSync(this.file)) return { courses: [], attempts: [] };
+    if (!existsSync(this.file)) return { courses: [], attempts: [], sequencingStates: [] };
     try {
       const parsed = JSON.parse(readFileSync(this.file, "utf8")) as Database;
       return {
         courses: Array.isArray(parsed.courses) ? parsed.courses : [],
         attempts: Array.isArray(parsed.attempts) ? parsed.attempts : [],
+        sequencingStates: Array.isArray(parsed.sequencingStates) ? parsed.sequencingStates : [],
       };
     } catch {
-      return { courses: [], attempts: [] };
+      return { courses: [], attempts: [], sequencingStates: [] };
     }
   }
 
@@ -273,6 +320,18 @@ export class CourseStore {
     rmSync(this.file, { force: true });
     renameSync(temporary, this.file);
   }
+}
+
+/** Drop false-positive sequencing flags from older imports (sibling-count only). */
+function withSequencingFlag(course: CourseRecord): CourseRecord {
+  if (!course.hasSequencing) return course;
+  if (courseUsesSequencing(course)) return course;
+  return {
+    ...course,
+    hasSequencing: false,
+    activityTree: undefined,
+    collections: undefined,
+  };
 }
 
 export type { CourseItem };

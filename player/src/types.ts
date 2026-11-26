@@ -29,6 +29,15 @@ export type Summary = {
   progress: number;
 };
 
+export type ActivitySettings = {
+  id: string;
+  title: string;
+  children?: ActivitySettings[];
+  sequencingControls?: Record<string, unknown>;
+  sequencingRules?: Record<string, unknown>;
+  [key: string]: unknown;
+};
+
 export type Course = {
   id: string;
   title: string;
@@ -39,4 +48,7 @@ export type Course = {
   createdAt: string;
   summary: Summary;
   attempts?: Attempt[];
+  hasSequencing?: boolean;
+  activityTree?: ActivitySettings;
+  collections?: Record<string, Record<string, unknown>>;
 };

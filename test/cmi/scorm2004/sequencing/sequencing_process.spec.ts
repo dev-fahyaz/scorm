@@ -3,7 +3,7 @@ import {
   DeliveryRequestType,
   SequencingProcess,
   SequencingRequestType,
-  SequencingResult
+  SequencingResult,
 } from "../../../../src/cmi/scorm2004/sequencing/sequencing_process";
 import { ActivityTree } from "../../../../src/cmi/scorm2004/sequencing/activity_tree";
 import { Activity } from "../../../../src/cmi/scorm2004/sequencing/activity";
@@ -12,12 +12,12 @@ import {
   RuleCondition,
   RuleConditionType,
   SequencingRule,
-  SequencingRules
+  SequencingRules,
 } from "../../../../src/cmi/scorm2004/sequencing/sequencing_rules";
 import {
   RandomizationTiming,
   SelectionTiming,
-  SequencingControls
+  SequencingControls,
 } from "../../../../src/cmi/scorm2004/sequencing/sequencing_controls";
 import { ADLNav } from "../../../../src/cmi/scorm2004/adl";
 
@@ -57,7 +57,7 @@ describe("SequencingProcess", () => {
       activityTree,
       sequencingRules,
       sequencingControls,
-      adlNav
+      adlNav,
     );
   });
 
@@ -118,12 +118,19 @@ describe("SequencingProcess", () => {
       other.now = () => new Date("2026-01-01T00:00:20Z");
       other.getAttemptElapsedSecondsHook = () => 20;
       try {
-        expect(sequencingProcess.sequencingRequestProcess(SequencingRequestType.CHOICE, leaf.id).exception).toBeNull();
-        expect(other.sequencingRequestProcess(SequencingRequestType.CHOICE, leaf.id).exception).toBe("SB.2.9-4");
+        expect(
+          sequencingProcess.sequencingRequestProcess(SequencingRequestType.CHOICE, leaf.id)
+            .exception,
+        ).toBeNull();
+        expect(
+          other.sequencingRequestProcess(SequencingRequestType.CHOICE, leaf.id).exception,
+        ).toBe("SB.2.9-4");
         other.getAttemptElapsedSecondsHook = undefined;
         other.now = () => new Date("2026-01-01T00:00:01Z");
         sequencingProcess.getAttemptElapsedSecondsHook = () => 20;
-        expect(other.sequencingRequestProcess(SequencingRequestType.CHOICE, leaf.id).exception).toBeNull();
+        expect(
+          other.sequencingRequestProcess(SequencingRequestType.CHOICE, leaf.id).exception,
+        ).toBeNull();
       } finally {
         RuleCondition.setElapsedSecondsHook(undefined);
         RuleCondition.setNowProvider(() => new Date());
@@ -171,7 +178,7 @@ describe("SequencingProcess", () => {
     it("should handle CHOICE request with target", () => {
       const result = sequencingProcess.sequencingRequestProcess(
         SequencingRequestType.CHOICE,
-        "child2"
+        "child2",
       );
 
       expect(result).toBeInstanceOf(SequencingResult);
@@ -186,7 +193,7 @@ describe("SequencingProcess", () => {
     it("should handle JUMP request with target", () => {
       const result = sequencingProcess.sequencingRequestProcess(
         SequencingRequestType.JUMP,
-        "child1"
+        "child1",
       );
 
       expect(result).toBeInstanceOf(SequencingResult);
@@ -229,7 +236,7 @@ describe("SequencingProcess", () => {
     it("should allow choice of root activity", () => {
       const result = sequencingProcess.sequencingRequestProcess(
         SequencingRequestType.CHOICE,
-        "root"
+        "root",
       );
 
       expect(result.exception).toBeNull();
@@ -239,7 +246,7 @@ describe("SequencingProcess", () => {
     it("should reject choice of non-existent activity", () => {
       const result = sequencingProcess.sequencingRequestProcess(
         SequencingRequestType.CHOICE,
-        "nonexistent"
+        "nonexistent",
       );
 
       expect(result.exception).toBe("SB.2.9-1");
@@ -253,7 +260,7 @@ describe("SequencingProcess", () => {
 
       const result = sequencingProcess.sequencingRequestProcess(
         SequencingRequestType.CHOICE,
-        "child1"
+        "child1",
       );
 
       expect(result.exception).toBe("SB.2.9-4");
@@ -262,7 +269,7 @@ describe("SequencingProcess", () => {
     it("should deliver leaf activity on choice", () => {
       const result = sequencingProcess.sequencingRequestProcess(
         SequencingRequestType.CHOICE,
-        "grandchild1"
+        "grandchild1",
       );
 
       expect(result.deliveryRequest).toBe(DeliveryRequestType.DELIVER);
@@ -297,12 +304,12 @@ describe("SequencingProcess", () => {
         testTree,
         sequencingRules,
         sequencingControls,
-        adlNav
+        adlNav,
       );
 
       const result = testProcess.sequencingRequestProcess(
         SequencingRequestType.CHOICE,
-        "simpleParent"
+        "simpleParent",
       );
 
       expect(result.deliveryRequest).toBe(DeliveryRequestType.DELIVER);
@@ -314,7 +321,7 @@ describe("SequencingProcess", () => {
     it("should deliver available activity on jump", () => {
       const result = sequencingProcess.sequencingRequestProcess(
         SequencingRequestType.JUMP,
-        "child2"
+        "child2",
       );
 
       expect(result.deliveryRequest).toBe(DeliveryRequestType.DELIVER);
@@ -329,7 +336,7 @@ describe("SequencingProcess", () => {
 
       const result = sequencingProcess.sequencingRequestProcess(
         SequencingRequestType.JUMP,
-        "child2"
+        "child2",
       );
 
       expect(result.exception).toBe("SB.2.13-3");
@@ -416,7 +423,7 @@ describe("SequencingProcess", () => {
 
         const result = sequencingProcess.sequencingRequestProcess(
           SequencingRequestType.CHOICE,
-          "child1"
+          "child1",
         );
 
         // Restore original method
@@ -449,7 +456,7 @@ describe("SequencingProcess", () => {
       // Try to navigate to tree2Child (which has no common ancestor)
       const result = sequencingProcess.sequencingRequestProcess(
         SequencingRequestType.CHOICE,
-        "tree2_child"
+        "tree2_child",
       );
 
       // This should result in an exception since the target can't be found in the tree
@@ -541,7 +548,7 @@ describe("SequencingProcess", () => {
 
         const result = sequencingProcess.sequencingRequestProcess(
           SequencingRequestType.CHOICE,
-          "child1"
+          "child1",
         );
 
         expect(result.exception).toBeTruthy();
@@ -571,7 +578,7 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       // Set current activity to child1
@@ -579,10 +586,7 @@ describe("SequencingProcess", () => {
       child1.isActive = false;
 
       // Try to choose child3 (skipping child2) - should fail with constrainChoice
-      const result = process.sequencingRequestProcess(
-        SequencingRequestType.CHOICE,
-        "child3"
-      );
+      const result = process.sequencingRequestProcess(SequencingRequestType.CHOICE, "child3");
 
       expect(result.exception).toBe("SB.2.9-7");
       expect(result.deliveryRequest).toBe(DeliveryRequestType.DO_NOT_DELIVER);
@@ -610,7 +614,7 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       // Set current activity to child1
@@ -618,10 +622,7 @@ describe("SequencingProcess", () => {
       child1.isActive = false;
 
       // Try to choose child2 - should fail because parent has flow=false
-      const result = process.sequencingRequestProcess(
-        SequencingRequestType.CHOICE,
-        "child2"
-      );
+      const result = process.sequencingRequestProcess(SequencingRequestType.CHOICE, "child2");
 
       // Should succeed because choice is independent of flow for explicit choices
       expect(result.deliveryRequest).toBe(DeliveryRequestType.DELIVER);
@@ -648,13 +649,10 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
-      const result = process.sequencingRequestProcess(
-        SequencingRequestType.CHOICE,
-        "child2"
-      );
+      const result = process.sequencingRequestProcess(SequencingRequestType.CHOICE, "child2");
 
       expect(result.exception).toBe("SB.2.9-7");
       expect(result.deliveryRequest).toBe(DeliveryRequestType.DO_NOT_DELIVER);
@@ -685,7 +683,7 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       // Set current activity to leaf1 inside cluster1
@@ -694,10 +692,7 @@ describe("SequencingProcess", () => {
       cluster1.isActive = true; // Mark parent as active
 
       // Try to choose leaf2 (outside cluster1) - should fail
-      const result = process.sequencingRequestProcess(
-        SequencingRequestType.CHOICE,
-        "leaf2"
-      );
+      const result = process.sequencingRequestProcess(SequencingRequestType.CHOICE, "leaf2");
 
       expect(result.exception).toBe("SB.2.9-8");
       expect(result.deliveryRequest).toBe(DeliveryRequestType.DO_NOT_DELIVER);
@@ -725,7 +720,7 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       // Set current activity to child1
@@ -757,7 +752,7 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       // Set current activity to child2
@@ -792,7 +787,7 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       // Try to start - should not be able to traverse into cluster
@@ -816,7 +811,7 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       // Set current activity to the last child
@@ -854,7 +849,7 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       // Set current activity to leaf3 (first child of cluster2)
@@ -892,7 +887,7 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       // Try to start - should fail because no children are available
@@ -940,17 +935,14 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       const startResult = process.sequencingRequestProcess(SequencingRequestType.START);
 
       expect(startResult.deliveryRequest).toBe(DeliveryRequestType.DELIVER);
       expect(startResult.targetActivity?.id).toBe("childC");
-      expect(root.getAvailableChildren().map((child) => child.id)).toEqual([
-        "childC",
-        "childA"
-      ]);
+      expect(root.getAvailableChildren().map((child) => child.id)).toEqual(["childC", "childA"]);
 
       if (startResult.targetActivity) {
         tree.currentActivity = startResult.targetActivity;
@@ -961,10 +953,7 @@ describe("SequencingProcess", () => {
 
       expect(continueResult.deliveryRequest).toBe(DeliveryRequestType.DELIVER);
       expect(continueResult.targetActivity?.id).toBe("childA");
-      expect(root.getAvailableChildren().map((child) => child.id)).toEqual([
-        "childC",
-        "childA"
-      ]);
+      expect(root.getAvailableChildren().map((child) => child.id)).toEqual(["childC", "childA"]);
     });
 
     it("should respect nested selection state across clusters", () => {
@@ -1026,7 +1015,7 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       const startResult = process.sequencingRequestProcess(SequencingRequestType.START);
@@ -1035,7 +1024,7 @@ describe("SequencingProcess", () => {
       expect(root.getAvailableChildren().map((child) => child.id)).toEqual(["clusterB"]);
       expect(clusterB.getAvailableChildren().map((child) => child.id)).toEqual([
         "leafB2",
-        "leafB1"
+        "leafB1",
       ]);
 
       if (startResult.targetActivity) {
@@ -1048,7 +1037,7 @@ describe("SequencingProcess", () => {
       expect(continueFirst.targetActivity?.id).toBe("leafB1");
       expect(clusterB.getAvailableChildren().map((child) => child.id)).toEqual([
         "leafB2",
-        "leafB1"
+        "leafB1",
       ]);
 
       if (continueFirst.targetActivity) {
@@ -1074,7 +1063,7 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       const result = process.sequencingRequestProcess(SequencingRequestType.EXIT);
@@ -1097,7 +1086,7 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       const result = process.sequencingRequestProcess(SequencingRequestType.EXIT);
@@ -1116,7 +1105,7 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       const result = process.sequencingRequestProcess(SequencingRequestType.SUSPEND_ALL);
@@ -1144,7 +1133,7 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       // Manually test terminateDescendentAttemptsProcess is called
@@ -1169,7 +1158,7 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       const result = process.sequencingRequestProcess(SequencingRequestType.RESUME_ALL);
@@ -1193,7 +1182,7 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       const result = process.sequencingRequestProcess(SequencingRequestType.RETRY);
@@ -1216,7 +1205,7 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       const result = process.sequencingRequestProcess(SequencingRequestType.RETRY);
@@ -1280,14 +1269,11 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       // Try to choose child1 (backward) with forwardOnly
-      const result = process.sequencingRequestProcess(
-        SequencingRequestType.CHOICE,
-        "child1"
-      );
+      const result = process.sequencingRequestProcess(SequencingRequestType.CHOICE, "child1");
 
       expect(result.exception).toBe("SB.2.9-5");
     });
@@ -1316,14 +1302,11 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       // Try to choose child1 (backward even though completed)
-      const result = process.sequencingRequestProcess(
-        SequencingRequestType.CHOICE,
-        "child1"
-      );
+      const result = process.sequencingRequestProcess(SequencingRequestType.CHOICE, "child1");
 
       // Per SCORM 2004, forwardOnly blocks ALL backward navigation
       // The completion check is for constrainChoice, not forwardOnly
@@ -1356,13 +1339,10 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
-      const result = process.sequencingRequestProcess(
-        SequencingRequestType.CHOICE,
-        "child2"
-      );
+      const result = process.sequencingRequestProcess(SequencingRequestType.CHOICE, "child2");
 
       expect(result.exception).toBe("SB.2.9-6");
     });
@@ -1378,12 +1358,12 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       const choices = process.getAvailableChoices();
 
-      expect(choices.map(a => a.id)).toEqual(["root"]);
+      expect(choices.map((a) => a.id)).toEqual(["root"]);
     });
 
     it("should return all available leaf activities", () => {
@@ -1405,16 +1385,16 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       const choices = process.getAvailableChoices();
 
       expect(choices.length).toBe(4);
-      expect(choices.map(a => a.id)).toContain("root");
-      expect(choices.map(a => a.id)).toContain("child1");
-      expect(choices.map(a => a.id)).toContain("child2");
-      expect(choices.map(a => a.id)).toContain("child3");
+      expect(choices.map((a) => a.id)).toContain("root");
+      expect(choices.map((a) => a.id)).toContain("child1");
+      expect(choices.map((a) => a.id)).toContain("child2");
+      expect(choices.map((a) => a.id)).toContain("child3");
     });
 
     it("should exclude hidden activities", () => {
@@ -1435,12 +1415,12 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       const choices = process.getAvailableChoices();
 
-      expect(choices.map(a => a.id)).toEqual(["root", "child2"]);
+      expect(choices.map((a) => a.id)).toEqual(["root", "child2"]);
     });
 
     it("should exclude unavailable activities", () => {
@@ -1461,12 +1441,12 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       const choices = process.getAvailableChoices();
 
-      expect(choices.map(a => a.id)).toEqual(["root", "child2"]);
+      expect(choices.map((a) => a.id)).toEqual(["root", "child2"]);
     });
 
     it("should exclude invisible activities", () => {
@@ -1487,12 +1467,12 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       const choices = process.getAvailableChoices();
 
-      expect(choices.map(a => a.id)).toEqual(["root", "child2"]);
+      expect(choices.map((a) => a.id)).toEqual(["root", "child2"]);
     });
 
     it("should exclude activities when parent has choice=false", () => {
@@ -1515,14 +1495,14 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       const choices = process.getAvailableChoices();
 
       // Only parent should be chooseable (if it doesn't require flow to leaves)
-      expect(choices.map(a => a.id)).not.toContain("child1");
-      expect(choices.map(a => a.id)).not.toContain("child2");
+      expect(choices.map((a) => a.id)).not.toContain("child1");
+      expect(choices.map((a) => a.id)).not.toContain("child2");
     });
 
     it("should respect choiceExit=false constraint from active ancestor", () => {
@@ -1553,17 +1533,17 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       const choices = process.getAvailableChoices();
 
       // Should only include activities within cluster1 (leaf1, leaf2)
       // cluster2 and leaf3 should be blocked by choiceExit=false
-      expect(choices.map(a => a.id)).toContain("leaf1");
-      expect(choices.map(a => a.id)).toContain("leaf2");
-      expect(choices.map(a => a.id)).not.toContain("leaf3");
-      expect(choices.map(a => a.id)).not.toContain("cluster2");
+      expect(choices.map((a) => a.id)).toContain("leaf1");
+      expect(choices.map((a) => a.id)).toContain("leaf2");
+      expect(choices.map((a) => a.id)).not.toContain("leaf3");
+      expect(choices.map((a) => a.id)).not.toContain("cluster2");
     });
 
     it("should allow choices within subtree when choiceExit=false at active ancestor", () => {
@@ -1592,14 +1572,14 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       const choices = process.getAvailableChoices();
 
       // Activities within cluster should be available
-      expect(choices.map(a => a.id)).toContain("leaf1");
-      expect(choices.map(a => a.id)).toContain("leaf2");
+      expect(choices.map((a) => a.id)).toContain("leaf1");
+      expect(choices.map((a) => a.id)).toContain("leaf2");
     });
 
     it("should not apply choiceExit constraint when ancestor is not active", () => {
@@ -1628,14 +1608,14 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       const choices = process.getAvailableChoices();
 
       // Since cluster1 is not active, choiceExit doesn't apply
-      expect(choices.map(a => a.id)).toContain("leaf1");
-      expect(choices.map(a => a.id)).toContain("leaf3");
+      expect(choices.map((a) => a.id)).toContain("leaf1");
+      expect(choices.map((a) => a.id)).toContain("leaf3");
     });
 
     it("should validate choice path constraints", () => {
@@ -1658,14 +1638,14 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       const choices = process.getAvailableChoices();
 
       // child1 should be blocked by forwardOnly
-      expect(choices.map(a => a.id)).not.toContain("child1");
-      expect(choices.map(a => a.id)).toContain("child2");
+      expect(choices.map((a) => a.id)).not.toContain("child1");
+      expect(choices.map((a) => a.id)).toContain("child2");
     });
 
     it("should handle deep nested activity trees", () => {
@@ -1692,12 +1672,12 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       const choices = process.getAvailableChoices();
 
-      expect(choices.map(a => a.id)).toContain("leaf");
+      expect(choices.map((a) => a.id)).toContain("leaf");
     });
 
     it("should include root activity in choices", () => {
@@ -1714,12 +1694,12 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       const choices = process.getAvailableChoices();
 
-      expect(choices.map(a => a.id)).toContain("root");
+      expect(choices.map((a) => a.id)).toContain("root");
     });
 
     it("should work when there is no current activity", () => {
@@ -1740,16 +1720,16 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       const choices = process.getAvailableChoices();
 
       // The root and all available children should be chooseable.
       expect(choices.length).toBe(3);
-      expect(choices.map(a => a.id)).toContain("root");
-      expect(choices.map(a => a.id)).toContain("child1");
-      expect(choices.map(a => a.id)).toContain("child2");
+      expect(choices.map((a) => a.id)).toContain("root");
+      expect(choices.map((a) => a.id)).toContain("child1");
+      expect(choices.map((a) => a.id)).toContain("child2");
     });
 
     it("should stop checking higher ancestors after finding blocking choiceExit", () => {
@@ -1782,13 +1762,13 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       const choices = process.getAvailableChoices();
 
       // External should be blocked by cluster1's choiceExit=false
-      expect(choices.map(a => a.id)).not.toContain("external");
+      expect(choices.map((a) => a.id)).not.toContain("external");
     });
   });
 
@@ -1811,14 +1791,11 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       // The limit check should be performed during checkActivityProcess
-      const result = process.sequencingRequestProcess(
-        SequencingRequestType.CHOICE,
-        "child1"
-      );
+      const result = process.sequencingRequestProcess(SequencingRequestType.CHOICE, "child1");
 
       // Should detect duration limit exceeded
       expect(result).toBeInstanceOf(SequencingResult);
@@ -1842,13 +1819,10 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
-      const result = process.sequencingRequestProcess(
-        SequencingRequestType.CHOICE,
-        "child1"
-      );
+      const result = process.sequencingRequestProcess(SequencingRequestType.CHOICE, "child1");
 
       expect(result).toBeInstanceOf(SequencingResult);
     });
@@ -1870,13 +1844,10 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
-      const result = process.sequencingRequestProcess(
-        SequencingRequestType.CHOICE,
-        "child1"
-      );
+      const result = process.sequencingRequestProcess(SequencingRequestType.CHOICE, "child1");
 
       expect(result).toBeInstanceOf(SequencingResult);
     });
@@ -1901,13 +1872,10 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
-      const result = process.sequencingRequestProcess(
-        SequencingRequestType.CHOICE,
-        "child1"
-      );
+      const result = process.sequencingRequestProcess(SequencingRequestType.CHOICE, "child1");
 
       expect(result).toBeInstanceOf(SequencingResult);
     });
@@ -1932,13 +1900,10 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
-      const result = process.sequencingRequestProcess(
-        SequencingRequestType.CHOICE,
-        "child1"
-      );
+      const result = process.sequencingRequestProcess(SequencingRequestType.CHOICE, "child1");
 
       // Activity may be blocked due to expired end time
       expect(result).toBeInstanceOf(SequencingResult);
@@ -1973,7 +1938,7 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       // Flow delivers the invisible activity before reaching the unavailable one.
@@ -2004,7 +1969,7 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       const result = process.sequencingRequestProcess(SequencingRequestType.CONTINUE);
@@ -2041,7 +2006,7 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       const result = process.sequencingRequestProcess(SequencingRequestType.PREVIOUS);
@@ -2063,7 +2028,7 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       const result = process.sequencingRequestProcess(SequencingRequestType.CONTINUE);
@@ -2091,7 +2056,7 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       const result = process.sequencingRequestProcess(SequencingRequestType.PREVIOUS);
@@ -2130,7 +2095,7 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       const result = process.sequencingRequestProcess(SequencingRequestType.CONTINUE);
@@ -2155,7 +2120,7 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       const result = process.sequencingRequestProcess(SequencingRequestType.START);
@@ -2178,7 +2143,7 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       const result = process.sequencingRequestProcess(SequencingRequestType.START);
@@ -2214,14 +2179,11 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       // Try to choose child1 (backward, incomplete) with constrainChoice
-      const result = process.sequencingRequestProcess(
-        SequencingRequestType.CHOICE,
-        "child1"
-      );
+      const result = process.sequencingRequestProcess(SequencingRequestType.CHOICE, "child1");
 
       expect(result.exception).toBe("SB.2.9-7");
     });
@@ -2252,14 +2214,11 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       // Try to choose child1 (backward, completed) with constrainChoice
-      const result = process.sequencingRequestProcess(
-        SequencingRequestType.CHOICE,
-        "child1"
-      );
+      const result = process.sequencingRequestProcess(SequencingRequestType.CHOICE, "child1");
 
       // Should succeed
       expect(result.deliveryRequest).toBe(DeliveryRequestType.DELIVER);
@@ -2295,14 +2254,11 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       // Try to choose child2 (never attempted) with preventActivation
-      const result = process.sequencingRequestProcess(
-        SequencingRequestType.CHOICE,
-        "child2"
-      );
+      const result = process.sequencingRequestProcess(SequencingRequestType.CHOICE, "child2");
 
       expect(result.exception).toBe("SB.2.9-6");
     });
@@ -2336,14 +2292,11 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       // Try to choose child2 (previously attempted) with preventActivation
-      const result = process.sequencingRequestProcess(
-        SequencingRequestType.CHOICE,
-        "child2"
-      );
+      const result = process.sequencingRequestProcess(SequencingRequestType.CHOICE, "child2");
 
       // Should succeed
       expect(result.deliveryRequest).toBe(DeliveryRequestType.DELIVER);
@@ -2364,7 +2317,7 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       const result = process.sequencingRequestProcess(SequencingRequestType.PREVIOUS);
@@ -2386,7 +2339,7 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       const result = process.sequencingRequestProcess(SequencingRequestType.EXIT);
@@ -2405,7 +2358,7 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       const result = process.sequencingRequestProcess(SequencingRequestType.EXIT_ALL);
@@ -2424,7 +2377,7 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       const result = process.sequencingRequestProcess(SequencingRequestType.ABANDON);
@@ -2443,7 +2396,7 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       const result = process.sequencingRequestProcess(SequencingRequestType.ABANDON_ALL);
@@ -2462,7 +2415,7 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       const result = process.sequencingRequestProcess(SequencingRequestType.SUSPEND_ALL);
@@ -2481,7 +2434,7 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       const result = process.sequencingRequestProcess(SequencingRequestType.RETRY);
@@ -2499,7 +2452,7 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       const result = process.sequencingRequestProcess(SequencingRequestType.JUMP);
@@ -2535,7 +2488,7 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       const result = process.sequencingRequestProcess(SequencingRequestType.EXIT);
@@ -2566,7 +2519,7 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       const result = process.sequencingRequestProcess(SequencingRequestType.SUSPEND_ALL);
@@ -2601,7 +2554,7 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       const result = process.sequencingRequestProcess(SequencingRequestType.EXIT_ALL);
@@ -2626,7 +2579,7 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       const result = process.sequencingRequestProcess(SequencingRequestType.ABANDON);
@@ -2662,14 +2615,11 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       // Try to skip from child1 to child4 (skipping child2 and child3)
-      const result = process.sequencingRequestProcess(
-        SequencingRequestType.CHOICE,
-        "child4"
-      );
+      const result = process.sequencingRequestProcess(SequencingRequestType.CHOICE, "child4");
 
       expect(result.exception).toBeTruthy();
       expect(result.deliveryRequest).toBe(DeliveryRequestType.DO_NOT_DELIVER);
@@ -2698,14 +2648,11 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       // Choose immediate next sibling
-      const result = process.sequencingRequestProcess(
-        SequencingRequestType.CHOICE,
-        "child2"
-      );
+      const result = process.sequencingRequestProcess(SequencingRequestType.CHOICE, "child2");
 
       expect(result.deliveryRequest).toBe(DeliveryRequestType.DELIVER);
       expect(result.targetActivity?.id).toBe("child2");
@@ -2738,14 +2685,11 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       // Choose completed child1
-      const result = process.sequencingRequestProcess(
-        SequencingRequestType.CHOICE,
-        "child1"
-      );
+      const result = process.sequencingRequestProcess(SequencingRequestType.CHOICE, "child1");
 
       expect(result.deliveryRequest).toBe(DeliveryRequestType.DELIVER);
     });
@@ -2779,14 +2723,11 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       // Try to skip child2 to reach child3
-      const result = process.sequencingRequestProcess(
-        SequencingRequestType.CHOICE,
-        "child3"
-      );
+      const result = process.sequencingRequestProcess(SequencingRequestType.CHOICE, "child3");
 
       expect(result.exception).toBeTruthy();
     });
@@ -2817,14 +2758,11 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       // Skip child2 to reach child3
-      const result = process.sequencingRequestProcess(
-        SequencingRequestType.CHOICE,
-        "child3"
-      );
+      const result = process.sequencingRequestProcess(SequencingRequestType.CHOICE, "child3");
 
       expect(result.deliveryRequest).toBe(DeliveryRequestType.DELIVER);
     });
@@ -2856,14 +2794,11 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       // Should be able to skip child2
-      const result = process.sequencingRequestProcess(
-        SequencingRequestType.CHOICE,
-        "child3"
-      );
+      const result = process.sequencingRequestProcess(SequencingRequestType.CHOICE, "child3");
 
       expect(result.deliveryRequest).toBe(DeliveryRequestType.DELIVER);
     });
@@ -2894,14 +2829,11 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       // Try backward choice with exception flag
-      const result = process.sequencingRequestProcess(
-        SequencingRequestType.CHOICE,
-        "child1"
-      );
+      const result = process.sequencingRequestProcess(SequencingRequestType.CHOICE, "child1");
 
       // May or may not succeed depending on other constraints, but the flag is checked
       expect(result).toBeInstanceOf(SequencingResult);
@@ -2930,13 +2862,10 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
-      const result = process.sequencingRequestProcess(
-        SequencingRequestType.CHOICE,
-        "child1"
-      );
+      const result = process.sequencingRequestProcess(SequencingRequestType.CHOICE, "child1");
 
       // Should detect the boundary violation
       expect(result).toBeInstanceOf(SequencingResult);
@@ -2962,13 +2891,10 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
-      const result = process.sequencingRequestProcess(
-        SequencingRequestType.CHOICE,
-        "child1"
-      );
+      const result = process.sequencingRequestProcess(SequencingRequestType.CHOICE, "child1");
 
       // Should detect the boundary violation
       expect(result).toBeInstanceOf(SequencingResult);
@@ -2994,13 +2920,10 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
-      const result = process.sequencingRequestProcess(
-        SequencingRequestType.CHOICE,
-        "child1"
-      );
+      const result = process.sequencingRequestProcess(SequencingRequestType.CHOICE, "child1");
 
       // Should be blocked by attempt limit
       expect(result).toBeInstanceOf(SequencingResult);
@@ -3029,14 +2952,11 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       // Forward choice should be allowed
-      const result = process.sequencingRequestProcess(
-        SequencingRequestType.CHOICE,
-        "child2"
-      );
+      const result = process.sequencingRequestProcess(SequencingRequestType.CHOICE, "child2");
 
       expect(result.deliveryRequest).toBe(DeliveryRequestType.DELIVER);
     });
@@ -3066,14 +2986,11 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       // Backward choice to completed activity
-      const result = process.sequencingRequestProcess(
-        SequencingRequestType.CHOICE,
-        "child1"
-      );
+      const result = process.sequencingRequestProcess(SequencingRequestType.CHOICE, "child1");
 
       // May succeed due to completion exception
       expect(result).toBeInstanceOf(SequencingResult);
@@ -3105,14 +3022,11 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       // Choice should be blocked
-      const result = process.sequencingRequestProcess(
-        SequencingRequestType.CHOICE,
-        "child2"
-      );
+      const result = process.sequencingRequestProcess(SequencingRequestType.CHOICE, "child2");
 
       expect(result.exception).toBeTruthy();
     });
@@ -3141,14 +3055,11 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       // Choice through full path
-      const result = process.sequencingRequestProcess(
-        SequencingRequestType.CHOICE,
-        "leaf"
-      );
+      const result = process.sequencingRequestProcess(SequencingRequestType.CHOICE, "leaf");
 
       expect(result.deliveryRequest).toBe(DeliveryRequestType.DELIVER);
     });
@@ -3186,14 +3097,11 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       // Try to jump across clusters
-      const result = process.sequencingRequestProcess(
-        SequencingRequestType.CHOICE,
-        "leaf2a"
-      );
+      const result = process.sequencingRequestProcess(SequencingRequestType.CHOICE, "leaf2a");
 
       // Should be constrained at root level
       expect(result).toBeInstanceOf(SequencingResult);
@@ -3223,14 +3131,11 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       // Navigate to deeply nested leaf
-      const result = process.sequencingRequestProcess(
-        SequencingRequestType.CHOICE,
-        "leaf"
-      );
+      const result = process.sequencingRequestProcess(SequencingRequestType.CHOICE, "leaf");
 
       expect(result.deliveryRequest).toBe(DeliveryRequestType.DELIVER);
       expect(result.targetActivity?.id).toBe("leaf");
@@ -3262,14 +3167,11 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       // Backward choice should be allowed since no constrainChoice
-      const result = process.sequencingRequestProcess(
-        SequencingRequestType.CHOICE,
-        "child1"
-      );
+      const result = process.sequencingRequestProcess(SequencingRequestType.CHOICE, "child1");
 
       // This tests that isActivityCompleted recognizes successStatus=passed
       expect(result.deliveryRequest).toBe(DeliveryRequestType.DELIVER);
@@ -3299,14 +3201,11 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       // Backward choice should work
-      const result = process.sequencingRequestProcess(
-        SequencingRequestType.CHOICE,
-        "child1"
-      );
+      const result = process.sequencingRequestProcess(SequencingRequestType.CHOICE, "child1");
 
       expect(result.deliveryRequest).toBe(DeliveryRequestType.DELIVER);
     });
@@ -3338,14 +3237,11 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       // Try to skip forward from active child2
-      const result = process.sequencingRequestProcess(
-        SequencingRequestType.CHOICE,
-        "child1"
-      );
+      const result = process.sequencingRequestProcess(SequencingRequestType.CHOICE, "child1");
 
       // Should evaluate constraints based on child2 being active
       expect(result).toBeInstanceOf(SequencingResult);
@@ -3375,14 +3271,11 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       // Choice without current activity
-      const result = process.sequencingRequestProcess(
-        SequencingRequestType.CHOICE,
-        "child2"
-      );
+      const result = process.sequencingRequestProcess(SequencingRequestType.CHOICE, "child2");
 
       expect(result.deliveryRequest).toBe(DeliveryRequestType.DELIVER);
     });
@@ -3409,7 +3302,7 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       // Try to traverse into cluster with stopForwardTraversal
@@ -3440,14 +3333,11 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       // Valid constrained choice
-      const result = process.sequencingRequestProcess(
-        SequencingRequestType.CHOICE,
-        "child2"
-      );
+      const result = process.sequencingRequestProcess(SequencingRequestType.CHOICE, "child2");
 
       expect(result.deliveryRequest).toBe(DeliveryRequestType.DELIVER);
     });
@@ -3472,13 +3362,10 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
-      const result = process.sequencingRequestProcess(
-        SequencingRequestType.CHOICE,
-        "child1"
-      );
+      const result = process.sequencingRequestProcess(SequencingRequestType.CHOICE, "child1");
 
       // The choice may be delivered or blocked depending on implementation
       // This test exercises the isVisible check in isActivityAvailableForChoice
@@ -3503,13 +3390,10 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
-      const result = process.sequencingRequestProcess(
-        SequencingRequestType.CHOICE,
-        "child1"
-      );
+      const result = process.sequencingRequestProcess(SequencingRequestType.CHOICE, "child1");
 
       // The choice may be delivered or blocked depending on implementation
       // This test exercises the choice control check in isActivityAvailableForChoice
@@ -3530,13 +3414,10 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
-      const result = process.sequencingRequestProcess(
-        SequencingRequestType.JUMP,
-        "nonexistent"
-      );
+      const result = process.sequencingRequestProcess(SequencingRequestType.JUMP, "nonexistent");
 
       expect(result.exception).toBe("SB.2.13-1");
     });
@@ -3552,14 +3433,11 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       // validateRequestSpecificConstraints is called internally
-      const result = process.sequencingRequestProcess(
-        SequencingRequestType.CHOICE,
-        "nonexistent"
-      );
+      const result = process.sequencingRequestProcess(SequencingRequestType.CHOICE, "nonexistent");
 
       expect(result.exception).toBe("SB.2.9-1");
     });
@@ -3582,14 +3460,11 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       // Normal case should not throw
-      const result = process.sequencingRequestProcess(
-        SequencingRequestType.CHOICE,
-        "child1"
-      );
+      const result = process.sequencingRequestProcess(SequencingRequestType.CHOICE, "child1");
 
       expect(result).toBeInstanceOf(SequencingResult);
     });
@@ -3636,15 +3511,12 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       // Attempt backward choice from child3 to child1 (incomplete)
       // Per SB.2.9, this should be blocked because target is not completed
-      const result = process.sequencingRequestProcess(
-        SequencingRequestType.CHOICE,
-        "child1"
-      );
+      const result = process.sequencingRequestProcess(SequencingRequestType.CHOICE, "child1");
 
       // SB.2.9-7: "Activity is not available for a choice sequencing request"
       // This is the expected exception when constrainChoice blocks backward navigation
@@ -3692,15 +3564,12 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       // Attempt to choose child2 which has never been attempted
       // Per SB.2.9, this should be blocked by preventActivation
-      const result = process.sequencingRequestProcess(
-        SequencingRequestType.CHOICE,
-        "child2"
-      );
+      const result = process.sequencingRequestProcess(SequencingRequestType.CHOICE, "child2");
 
       // SB.2.9-6: "Activity is blocked from activation"
       // This is the expected exception when preventActivation blocks unattempted activity
@@ -3740,14 +3609,11 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       // Backward choice to completed child1 should succeed
-      const result = process.sequencingRequestProcess(
-        SequencingRequestType.CHOICE,
-        "child1"
-      );
+      const result = process.sequencingRequestProcess(SequencingRequestType.CHOICE, "child1");
 
       expect(result.deliveryRequest).toBe(DeliveryRequestType.DELIVER);
       expect(result.targetActivity?.id).toBe("child1");
@@ -3791,14 +3657,11 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       // Choice to previously attempted child2 should succeed
-      const result = process.sequencingRequestProcess(
-        SequencingRequestType.CHOICE,
-        "child2"
-      );
+      const result = process.sequencingRequestProcess(SequencingRequestType.CHOICE, "child2");
 
       expect(result.deliveryRequest).toBe(DeliveryRequestType.DELIVER);
       expect(result.targetActivity?.id).toBe("child2");
@@ -3848,15 +3711,12 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       // Backward choice within cluster with constrainChoice should be blocked
       // Could be blocked by constrainChoice (SB.2.9-7) or other constraints
-      const result = process.sequencingRequestProcess(
-        SequencingRequestType.CHOICE,
-        "leaf1a"
-      );
+      const result = process.sequencingRequestProcess(SequencingRequestType.CHOICE, "leaf1a");
 
       // The choice is blocked - verify the constraint was applied
       expect(result.exception).toBeTruthy();
@@ -3904,14 +3764,11 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       // Choice to unattempted sibling should be blocked by preventActivation
-      const result = process.sequencingRequestProcess(
-        SequencingRequestType.CHOICE,
-        "leaf1b"
-      );
+      const result = process.sequencingRequestProcess(SequencingRequestType.CHOICE, "leaf1b");
 
       expect(result.exception).toBe("SB.2.9-6");
       expect(result.deliveryRequest).toBe(DeliveryRequestType.DO_NOT_DELIVER);
@@ -3947,14 +3804,11 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       // Backward choice to "passed" activity should succeed
-      const result = process.sequencingRequestProcess(
-        SequencingRequestType.CHOICE,
-        "child1"
-      );
+      const result = process.sequencingRequestProcess(SequencingRequestType.CHOICE, "child1");
 
       expect(result.deliveryRequest).toBe(DeliveryRequestType.DELIVER);
     });
@@ -3995,14 +3849,11 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       // This exercises the isActive check path in the preventActivation validation
-      const result = process.sequencingRequestProcess(
-        SequencingRequestType.CHOICE,
-        "child2"
-      );
+      const result = process.sequencingRequestProcess(SequencingRequestType.CHOICE, "child2");
 
       // The result exercises the code path - may or may not deliver
       // depending on other constraints, but preventActivation check runs
@@ -4046,14 +3897,11 @@ describe("SequencingProcess", () => {
         tree,
         new SequencingRules(),
         new SequencingControls(),
-        new ADLNav()
+        new ADLNav(),
       );
 
       // Backward choice to "unknown" completionStatus should be blocked
-      const result = process.sequencingRequestProcess(
-        SequencingRequestType.CHOICE,
-        "child1"
-      );
+      const result = process.sequencingRequestProcess(SequencingRequestType.CHOICE, "child1");
 
       // With constrainChoice and incomplete target, should block with SB.2.9-7
       expect(result.exception).toBe("SB.2.9-7");

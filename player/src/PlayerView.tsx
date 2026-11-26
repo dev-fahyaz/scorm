@@ -2,21 +2,49 @@ import { useEffect, useRef, useState } from "react";
 import { getCourse } from "./api";
 import { navigate } from "./App";
 import { formatClock, normalizeCommit, statusLabel, totalSeconds } from "../server/normalize";
-import { attachRuntime, finishRuntime } from "./runtime";
+import {
+  attachRuntime,
+  attachSequencedRuntime,
+  finishRuntime,
+  type SequencedRuntime,
+} from "./runtime";
 import type { Attempt, Course } from "./types";
+
+type NavState = {
+  canPrevious: boolean;
+  canNext: boolean;
+  hidePrevious: boolean;
+  hideContinue: boolean;
+};
 
 export function PlayerView({ courseId, itemId }: { courseId: string; itemId: string | null }) {
   const [course, setCourse] = useState<Course | null>(null);
   const [error, setError] = useState("");
+  const [activeItemId, setActiveItemId] = useState<string | null>(itemId);
+  const [activeTitle, setActiveTitle] = useState("");
   const [live, setLive] = useState({
     completion: "not attempted",
     success: null as "passed" | "failed" | null,
     scoreRaw: null as number | null,
   });
   const [elapsed, setElapsed] = useState(0);
+  const [nav, setNav] = useState<NavState>({
+    canPrevious: false,
+    canNext: false,
+    hidePrevious: false,
+    hideContinue: false,
+  });
+  const [outlineOpen, setOutlineOpen] = useState(true);
   const frameRef = useRef<HTMLIFrameElement>(null);
   const savedCmi = useRef(new Map<string, Record<string, unknown>>());
   const cacheCourseId = useRef<string | null>(null);
+  const sequencedRef = useRef<SequencedRuntime | null>(null);
+  const deliveredIdRef = useRef<string | null>(null);
+
+  function blankFrame(): void {
+    const frame = frameRef.current;
+    if (frame) frame.src = "about:blank";
+  }
 
   useEffect(() => {
     let ignore = false;
@@ -33,7 +61,13 @@ export function PlayerView({ courseId, itemId }: { courseId: string; itemId: str
     };
   }, [courseId]);
 
-  const item = course?.items.find((entry) => entry.id === itemId) ?? course?.items[0] ?? null;
+  const sequenced = Boolean(
+    course?.hasSequencing && course.activityTree && course.version === "2004",
+  );
+  const item =
+    course?.items.find((entry) => entry.id === (activeItemId || itemId)) ??
+    course?.items[0] ??
+    null;
   const attempt = course?.attempts?.find((entry) => entry.itemId === item?.id) ?? null;
 
   useEffect(() => {
@@ -49,7 +83,8 @@ export function PlayerView({ courseId, itemId }: { courseId: string; itemId: str
   }, [course, courseId]);
 
   useEffect(() => {
-    if (!course || !item) return;
+    if (!course || sequenced) return;
+    if (!item) return;
     const startedAt = Date.now();
     const timer = window.setInterval(
       () => setElapsed(Math.floor((Date.now() - startedAt) / 1000)),
@@ -63,10 +98,19 @@ export function PlayerView({ courseId, itemId }: { courseId: string; itemId: str
     const saved = savedCmi.current.get(currentItemId) ?? attempt?.cmi ?? null;
     const opening = normalizeCommit(saved, version);
     setElapsed(0);
+    setActiveItemId(currentItemId);
+    setActiveTitle(item.title);
     setLive({
       completion: opening.completion,
       success: opening.success,
       scoreRaw: opening.scoreRaw,
+    });
+    const index = course.items.findIndex((entry) => entry.id === currentItemId);
+    setNav({
+      canPrevious: index > 0,
+      canNext: index >= 0 && index < course.items.length - 1,
+      hidePrevious: false,
+      hideContinue: false,
     });
     const api = attachRuntime(version, courseKey, currentItemId, saved);
     const remember = (snapshot: Record<string, unknown>) => {
@@ -107,16 +151,139 @@ export function PlayerView({ courseId, itemId }: { courseId: string; itemId: str
       closed = true;
       window.clearInterval(timer);
       if (started) remember(api.renderCMIToJSONObject());
+      blankFrame();
       finishRuntime(api, version, started);
     };
-    // The visit cache captured at launch is the resume snapshot. Later commits must not reload the SCO.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [course?.id, item?.id, course?.version]);
+  }, [course?.id, item?.id, course?.version, sequenced]);
 
   useEffect(() => {
-    if (!course || !item || itemId === item.id) return;
-    navigate(`/play/${encodeURIComponent(course.id)}/${encodeURIComponent(item.id)}`);
-  }, [course, item, itemId]);
+    if (!course || !sequenced) return;
+    let closed = false;
+    const startedAt = Date.now();
+    const timer = window.setInterval(
+      () => setElapsed(Math.floor((Date.now() - startedAt) / 1000)),
+      1000,
+    );
+    setElapsed(0);
+    setNav({
+      canPrevious: false,
+      canNext: false,
+      hidePrevious: false,
+      hideContinue: false,
+    });
+
+    const firstItem = course.items[0];
+    const resumeId = itemId || firstItem?.id || "";
+    const initial =
+      savedCmi.current.get(resumeId) ??
+      course.attempts?.find((entry) => entry.itemId === resumeId)?.cmi ??
+      null;
+
+    const runtime = attachSequencedRuntime(course, {
+      getLaunchUrl: (id, href) => launchUrl(course.id, href),
+      initialCmi: initial,
+      beforeActivityReset: () => {
+        blankFrame();
+      },
+      onDelivery: (id, title, url) => {
+        if (closed) return;
+        deliveredIdRef.current = id;
+        setActiveItemId(id);
+        setActiveTitle(title);
+        // blank → reset already ran in runtime when switching; now load the SCO
+        const frame = frameRef.current;
+        if (frame && url) frame.src = url;
+        navigate(`/play/${encodeURIComponent(course.id)}/${encodeURIComponent(id)}`, true);
+        const saved = savedCmi.current.get(id);
+        if (saved) {
+          const normalized = normalizeCommit(saved, "2004");
+          setLive({
+            completion: normalized.completion,
+            success: normalized.success,
+            scoreRaw: normalized.scoreRaw,
+          });
+        } else {
+          setLive({ completion: "not attempted", success: null, scoreRaw: null });
+        }
+      },
+      onNavigation: (state) => {
+        if (closed) return;
+        setNav({
+          canPrevious: state.canPrevious,
+          canNext: state.canNext,
+          hidePrevious: Boolean(state.hidePrevious),
+          hideContinue: Boolean(state.hideContinue),
+        });
+      },
+      onSessionEnd: () => {
+        if (!closed) navigate("/");
+      },
+    });
+    sequencedRef.current = runtime;
+
+    const api = runtime.api;
+    const remember = (itemKey: string, snapshot: Record<string, unknown>) => {
+      savedCmi.current.set(itemKey, snapshot);
+      setCourse((current) =>
+        current && current.id === course.id
+          ? withRememberedAttempt(current, itemKey, snapshot)
+          : current,
+      );
+    };
+    const refresh = () => {
+      const snapshot = api.renderCMIToJSONObject();
+      if (closed) return snapshot;
+      const normalized = normalizeCommit(snapshot, "2004");
+      setLive({
+        completion: normalized.completion,
+        success: normalized.success,
+        scoreRaw: normalized.scoreRaw,
+      });
+      return snapshot;
+    };
+    const publish = () => {
+      const currentId = deliveredIdRef.current || firstItem?.id;
+      if (currentId) remember(currentId, refresh());
+    };
+    api.on("SetValue", refresh);
+    api.on("Commit", publish);
+    api.on("CommitSuccess", publish);
+
+    void runtime.start();
+
+    return () => {
+      closed = true;
+      window.clearInterval(timer);
+      const currentId = deliveredIdRef.current || firstItem?.id;
+      blankFrame();
+      if (currentId && api.isInitialized?.()) {
+        remember(currentId, api.renderCMIToJSONObject());
+        finishRuntime(api, "2004", true);
+      } else {
+        runtime.destroy();
+      }
+      sequencedRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [course?.id, sequenced]);
+
+  // Flat player: URL is source of truth. Sync active item from the route
+  // (Next/Previous/outline), and only fill a missing itemId once.
+  useEffect(() => {
+    if (!course || sequenced) return;
+    if (itemId) {
+      if (itemId !== activeItemId) setActiveItemId(itemId);
+      return;
+    }
+    const fallback = course.items[0];
+    if (fallback) {
+      navigate(
+        `/play/${encodeURIComponent(course.id)}/${encodeURIComponent(fallback.id)}`,
+        true,
+      );
+    }
+  }, [course, sequenced, itemId, activeItemId]);
 
   if (error) {
     return (
@@ -130,32 +297,53 @@ export function PlayerView({ courseId, itemId }: { courseId: string; itemId: str
   }
   if (!course || !item) return <main className="player-message">Loading course…</main>;
 
-  const index = course.items.findIndex((entry) => entry.id === item.id);
-  const previous = index > 0 ? course.items[index - 1] : null;
-  const next = index >= 0 && index < course.items.length - 1 ? course.items[index + 1] : null;
   const progress = courseProgress(course, item.id, live.completion);
   const stored = attempt ? totalSeconds(attempt) : 0;
+  const displayTitle = activeTitle || item.title;
+  const itemIndex = course.items.findIndex((entry) => entry.id === item.id);
+  const hasEarlierItem = itemIndex > 0;
+  const hasLaterItem = itemIndex >= 0 && itemIndex < course.items.length - 1;
+  // Sequenced chrome follows SN validity; flat chrome follows item index.
+  const previousEnabled = sequenced ? nav.canPrevious : hasEarlierItem;
+  const nextEnabled = sequenced ? nav.canNext : hasLaterItem;
 
   return (
-    <main className="player">
-      <aside className="outline">
-        <p className="eyebrow">Course outline</p>
+    <main className={outlineOpen ? "player" : "player outline-collapsed"}>
+      <aside className="outline" aria-hidden={!outlineOpen}>
+        <div className="outline-head">
+          <p className="eyebrow">Course outline</p>
+          <button
+            className="outline-toggle quiet"
+            type="button"
+            onClick={() => setOutlineOpen(false)}
+            aria-label="Hide outline"
+          >
+            Hide
+          </button>
+        </div>
         <h1>{course.title}</h1>
+        {course.hasSequencing ? <p className="outline-note">Sequenced SCORM 2004</p> : null}
         <ol>
           {course.items.map((entry, entryIndex) => {
             const state = entry.id === item.id ? live.completion : completionFor(course, entry.id);
+            const current = entry.id === item.id;
             return (
               <li key={entry.id}>
                 <button
                   type="button"
-                  className={entry.id === item.id ? "current" : ""}
-                  onClick={() =>
+                  className={current ? "current" : ""}
+                  data-status={state}
+                  disabled={sequenced}
+                  onClick={() => {
+                    if (sequenced) return;
                     navigate(
                       `/play/${encodeURIComponent(course.id)}/${encodeURIComponent(entry.id)}`,
-                    )
-                  }
+                    );
+                  }}
                 >
-                  <span>{entryIndex + 1}</span>
+                  <span className="outline-index" data-status={state}>
+                    {state === "completed" ? "✓" : entryIndex + 1}
+                  </span>
                   <span>
                     <strong>{entry.title}</strong>
                     <small>
@@ -173,16 +361,29 @@ export function PlayerView({ courseId, itemId }: { courseId: string; itemId: str
       </aside>
       <section className="stage">
         <div className="stage-bar">
-          <div>
-            <p className="eyebrow">Now playing</p>
-            <h2>{item.title}</h2>
+          <div className="stage-bar-main">
+            {!outlineOpen ? (
+              <button
+                className="quiet outline-show"
+                type="button"
+                onClick={() => setOutlineOpen(true)}
+              >
+                Outline
+              </button>
+            ) : null}
+            <div>
+              <p className="eyebrow">Now playing</p>
+              <h2>{displayTitle}</h2>
+            </div>
           </div>
           <div className="metrics">
             <span className="chip" data-status={live.completion}>
               {statusLabel(live.completion, live.success)}
             </span>
-            <span>{live.scoreRaw == null ? "Score —" : `Score ${live.scoreRaw}`}</span>
-            <span>{formatClock(stored + elapsed)}</span>
+            <span className="metric-pill">
+              {live.scoreRaw == null ? "Score —" : `Score ${live.scoreRaw}`}
+            </span>
+            <span className="metric-pill">{formatClock(stored + elapsed)}</span>
           </div>
           <div
             className="bar wide"
@@ -194,27 +395,49 @@ export function PlayerView({ courseId, itemId }: { courseId: string; itemId: str
             <span style={{ width: `${progress}%` }} />
           </div>
         </div>
-        <iframe ref={frameRef} title={item.title} src="about:blank" />
+        <iframe ref={frameRef} title={displayTitle} src="about:blank" />
         <footer className="stage-nav">
-          <button
-            className="quiet"
-            type="button"
-            disabled={!previous}
-            onClick={() => previous && navigate(itemPath(course.id, previous.id))}
-          >
-            Previous
-          </button>
+          {!nav.hidePrevious ? (
+            <button
+              className="quiet"
+              type="button"
+              disabled={!previousEnabled}
+              onClick={() => {
+                if (sequenced) {
+                  sequencedRef.current?.navigate("previous");
+                  return;
+                }
+                const previous = hasEarlierItem ? course.items[itemIndex - 1] : null;
+                if (previous) navigate(itemPath(course.id, previous.id));
+              }}
+            >
+              Previous
+            </button>
+          ) : (
+            <span />
+          )}
           <button className="quiet" type="button" onClick={() => navigate("/")}>
             Exit
           </button>
-          <button
-            className="primary"
-            type="button"
-            disabled={!next}
-            onClick={() => next && navigate(itemPath(course.id, next.id))}
-          >
-            Next
-          </button>
+          {!nav.hideContinue ? (
+            <button
+              className="primary"
+              type="button"
+              disabled={!nextEnabled}
+              onClick={() => {
+                if (sequenced) {
+                  sequencedRef.current?.navigate("continue");
+                  return;
+                }
+                const next = hasLaterItem ? course.items[itemIndex + 1] : null;
+                if (next) navigate(itemPath(course.id, next.id));
+              }}
+            >
+              Next
+            </button>
+          ) : (
+            <span />
+          )}
         </footer>
       </section>
     </main>

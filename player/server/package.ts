@@ -4,6 +4,12 @@ import path from "node:path";
 import { pipeline } from "node:stream/promises";
 import { XMLParser } from "fast-xml-parser";
 import yauzl, { type Entry, type ZipFile } from "yauzl";
+import {
+  buildActivityTree,
+  parseSequencingCollection,
+  type PlayerActivitySettings,
+  type PlayerSequencingCollectionSettings,
+} from "./sequencing";
 
 export const ZIP_BOMB = {
   maxRatio: 100,
@@ -28,6 +34,9 @@ export type ParsedPackage = {
   version: "1.2" | "2004";
   items: CourseItem[];
   warnings: string[];
+  hasSequencing?: boolean;
+  activityTree?: PlayerActivitySettings;
+  collections?: Record<string, PlayerSequencingCollectionSettings>;
 };
 
 function hasControlCharacter(value: string): boolean {
@@ -184,13 +193,31 @@ function detectVersion(
   };
 }
 
+const SEQUENCING_ARRAY_TAGS = new Set([
+  "organization",
+  "item",
+  "resource",
+  "file",
+  "sequencingCollection",
+  "preConditionRule",
+  "exitConditionRule",
+  "postConditionRule",
+  "ruleCondition",
+  "rollupRule",
+  "rollupCondition",
+  "objective",
+  "mapInfo",
+  "hideLMSUI",
+  "sequencingCollectionRef",
+]);
+
 export function parseManifest(rawXml: string, fileNames: string[]): ParsedPackage {
   const parser = new XMLParser({
     ignoreAttributes: false,
     attributeNamePrefix: "@_",
     removeNSPrefix: true,
     processEntities: false,
-    isArray: (name) => ["organization", "item", "resource", "file"].includes(name),
+    isArray: (name) => SEQUENCING_ARRAY_TAGS.has(name),
   });
 
   let document: XmlNode;
@@ -225,13 +252,26 @@ export function parseManifest(rawXml: string, fileNames: string[]): ParsedPackag
   }
 
   const items: CourseItem[] = [];
-  let sequencing = false;
-  const visit = (nodes: unknown) => {
+  const { activityTree, hasSequencing: treeHasSequencing } = buildActivityTree(organization, {
+    itemHref: (_itemId, ref) => {
+      const resource = resources.get(ref);
+      const href = textOf(resource?.["@_href"]);
+      if (!resource || !href) return null;
+      if (!findFile(fileNames, href)) return null;
+      return href;
+    },
+    onLeaf: (item) => {
+      if (!items.some((existing) => existing.id === item.id)) items.push(item);
+    },
+    onWarning: (message) => warnings.push(message),
+  });
+
+  // Prefer item titles from the organization walk (onLeaf already filled items).
+  // Emit resource warnings for leaves that failed validation.
+  const validateLeaves = (nodes: unknown) => {
     for (const item of asArray(nodes)) {
-      if ("sequencing" in item) sequencing = true;
       const ref = textOf(item["@_identifierref"]);
       const title = decodeXml(textOf(item.title) || "Untitled");
-      const id = textOf(item["@_identifier"]) || `item-${items.length + 1}`;
       if (ref) {
         const resource = resources.get(ref);
         const href = textOf(resource?.["@_href"]);
@@ -239,20 +279,18 @@ export function parseManifest(rawXml: string, fileNames: string[]): ParsedPackag
           warnings.push(`"${title}" points at resource "${ref}", which has no launch file.`);
         } else if (!findFile(fileNames, href)) {
           warnings.push(`The launch file for "${title}" is missing: ${href}`);
-        } else {
-          items.push({ id, title, href });
         }
       }
-      if (item.item) visit(item.item);
+      if (item.item) validateLeaves(item.item);
     }
   };
-  visit(organization.item);
+  validateLeaves(organization.item);
 
-  if (sequencing) {
-    warnings.push(
-      "This package includes sequencing. Items launch directly, without sequencing rules.",
-    );
-  }
+  const collections = parseSequencingCollection(
+    (root.sequencingCollection ??
+      (root.sequencingCollections as XmlNode | undefined)?.sequencingCollection) as unknown,
+  );
+  const hasSequencing = detected.version === "2004" && (treeHasSequencing || Boolean(collections));
 
   for (const resource of resources.values()) {
     for (const file of asArray(resource.file)) {
@@ -273,6 +311,9 @@ export function parseManifest(rawXml: string, fileNames: string[]): ParsedPackag
     version: detected.version,
     items,
     warnings: [...new Set(warnings)].slice(0, 20),
+    hasSequencing: hasSequencing || undefined,
+    activityTree: hasSequencing ? activityTree : undefined,
+    collections: hasSequencing ? collections : undefined,
   };
 }
 
