@@ -77,7 +77,19 @@ export function PlayerView({ courseId, itemId }: { courseId: string; itemId: str
       cacheCourseId.current = course.id;
     }
     for (const stored of course.attempts ?? []) {
-      if (!stored.cmi || savedCmi.current.has(stored.itemId)) continue;
+      if (!stored.cmi) continue;
+      const local = savedCmi.current.get(stored.itemId);
+      // Prefer in-memory snapshot when it already carries learner status.
+      if (local) {
+        const localNorm = normalizeCommit(local, course.version);
+        if (
+          localNorm.completion !== "not attempted" ||
+          localNorm.success != null ||
+          localNorm.lastLocation
+        ) {
+          continue;
+        }
+      }
       savedCmi.current.set(stored.itemId, stored.cmi);
     }
   }, [course, courseId]);
@@ -182,6 +194,10 @@ export function PlayerView({ courseId, itemId }: { courseId: string; itemId: str
 
     const runtime = attachSequencedRuntime(course, {
       getLaunchUrl: (id, href) => launchUrl(course.id, href),
+      getSavedCmi: (id) =>
+        savedCmi.current.get(id) ??
+        course.attempts?.find((entry) => entry.itemId === id)?.cmi ??
+        null,
       initialCmi: initial,
       beforeActivityReset: () => {
         blankFrame();
@@ -195,17 +211,51 @@ export function PlayerView({ courseId, itemId }: { courseId: string; itemId: str
         const frame = frameRef.current;
         if (frame && url) frame.src = url;
         navigate(`/play/${encodeURIComponent(course.id)}/${encodeURIComponent(id)}`, true);
-        const saved = savedCmi.current.get(id);
+        const saved =
+          savedCmi.current.get(id) ??
+          course.attempts?.find((entry) => entry.itemId === id)?.cmi ??
+          null;
+        const attempt = course.attempts?.find((entry) => entry.itemId === id);
         if (saved) {
           const normalized = normalizeCommit(saved, "2004");
           setLive({
-            completion: normalized.completion,
-            success: normalized.success,
-            scoreRaw: normalized.scoreRaw,
+            completion:
+              normalized.completion === "not attempted"
+                ? (attempt?.completion ?? normalized.completion)
+                : normalized.completion,
+            success: normalized.success ?? attempt?.success ?? null,
+            scoreRaw: normalized.scoreRaw ?? attempt?.scoreRaw ?? null,
+          });
+        } else if (attempt) {
+          setLive({
+            completion: attempt.completion,
+            success: attempt.success,
+            scoreRaw: attempt.scoreRaw,
           });
         } else {
           setLive({ completion: "not attempted", success: null, scoreRaw: null });
         }
+        // Refresh attempt list so the outline shows prior SCO pass/complete.
+        void getCourse(course.id)
+          .then((fresh) => {
+            if (closed) return;
+            setCourse(fresh);
+            const latest = fresh.attempts?.find((entry) => entry.itemId === id);
+            if (!latest) return;
+            setLive((current) => {
+              if (current.success === "passed" || current.completion === "completed") {
+                return current;
+              }
+              return {
+                completion: latest.completion,
+                success: latest.success,
+                scoreRaw: latest.scoreRaw,
+              };
+            });
+          })
+          .catch(() => {
+            /* keep in-memory course */
+          });
       },
       onNavigation: (state) => {
         if (closed) return;
@@ -256,13 +306,19 @@ export function PlayerView({ courseId, itemId }: { courseId: string; itemId: str
       closed = true;
       window.clearInterval(timer);
       const currentId = deliveredIdRef.current || firstItem?.id;
-      blankFrame();
-      if (currentId && api.isInitialized?.()) {
-        remember(currentId, api.renderCMIToJSONObject());
-        finishRuntime(api, "2004", true);
-      } else {
-        runtime.destroy();
+      // Persist before blanking so unload does not race a cleared API.
+      if (currentId) {
+        try {
+          if (api.isInitialized?.()) {
+            remember(currentId, api.renderCMIToJSONObject());
+          }
+        } catch {
+          /* ignore */
+        }
       }
+      runtime.suspendAndPersist();
+      blankFrame();
+      runtime.destroy();
       sequencedRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -303,9 +359,18 @@ export function PlayerView({ courseId, itemId }: { courseId: string; itemId: str
   const itemIndex = course.items.findIndex((entry) => entry.id === item.id);
   const hasEarlierItem = itemIndex > 0;
   const hasLaterItem = itemIndex >= 0 && itemIndex < course.items.length - 1;
-  // Sequenced chrome follows SN validity; flat chrome follows item index.
-  const previousEnabled = sequenced ? nav.canPrevious : hasEarlierItem;
-  const nextEnabled = sequenced ? nav.canNext : hasLaterItem;
+  const attemptDone =
+    attempt?.success === "passed" || attempt?.completion === "completed";
+  const currentDone =
+    live.success === "passed" ||
+    live.completion === "completed" ||
+    Boolean(attemptDone);
+  // Sequenced: never Next until current is done. Previous stays available for
+  // any earlier leaf (SN previous or choice) so Exit/skip cannot trap the learner.
+  const previousEnabled = sequenced
+    ? nav.canPrevious || hasEarlierItem
+    : hasEarlierItem;
+  const nextEnabled = sequenced ? nav.canNext && currentDone : hasLaterItem;
 
   return (
     <main className={outlineOpen ? "player" : "player outline-collapsed"}>
@@ -326,32 +391,38 @@ export function PlayerView({ courseId, itemId }: { courseId: string; itemId: str
         <ol>
           {course.items.map((entry, entryIndex) => {
             const state = entry.id === item.id ? live.completion : completionFor(course, entry.id);
+            const success = entry.id === item.id ? live.success : successFor(course, entry.id);
             const current = entry.id === item.id;
+            const done = state === "completed" || success === "passed";
+            // Sequenced outline: current, passed/completed, or any earlier leaf
+            // already reached in the flow (so Exit after a skip is recoverable).
+            const reachedEarlier = sequenced && entryIndex < itemIndex;
+            const outlineEnabled = !sequenced || current || done || reachedEarlier;
             return (
               <li key={entry.id}>
                 <button
                   type="button"
                   className={current ? "current" : ""}
-                  data-status={state}
-                  disabled={sequenced}
+                  data-status={done ? "completed" : state}
+                  disabled={!outlineEnabled || (sequenced && current)}
                   onClick={() => {
-                    if (sequenced) return;
+                    if (sequenced) {
+                      if (current) return;
+                      if (!done && !reachedEarlier) return;
+                      sequencedRef.current?.choose(entry.id);
+                      return;
+                    }
                     navigate(
                       `/play/${encodeURIComponent(course.id)}/${encodeURIComponent(entry.id)}`,
                     );
                   }}
                 >
-                  <span className="outline-index" data-status={state}>
-                    {state === "completed" ? "✓" : entryIndex + 1}
+                  <span className="outline-index" data-status={done ? "completed" : state}>
+                    {done ? "✓" : entryIndex + 1}
                   </span>
                   <span>
                     <strong>{entry.title}</strong>
-                    <small>
-                      {statusLabel(
-                        state,
-                        entry.id === item.id ? live.success : successFor(course, entry.id),
-                      )}
-                    </small>
+                    <small>{statusLabel(state, success)}</small>
                   </span>
                 </button>
               </li>
@@ -404,7 +475,12 @@ export function PlayerView({ courseId, itemId }: { courseId: string; itemId: str
               disabled={!previousEnabled}
               onClick={() => {
                 if (sequenced) {
-                  sequencedRef.current?.navigate("previous");
+                  if (nav.canPrevious) {
+                    sequencedRef.current?.navigate("previous");
+                    return;
+                  }
+                  const previous = hasEarlierItem ? course.items[itemIndex - 1] : null;
+                  if (previous) sequencedRef.current?.choose(previous.id);
                   return;
                 }
                 const previous = hasEarlierItem ? course.items[itemIndex - 1] : null;
@@ -416,7 +492,34 @@ export function PlayerView({ courseId, itemId }: { courseId: string; itemId: str
           ) : (
             <span />
           )}
-          <button className="quiet" type="button" onClick={() => navigate("/")}>
+          <button
+            className="quiet"
+            type="button"
+            onClick={() => {
+              if (sequenced) {
+                const currentId = deliveredIdRef.current || item.id;
+                const api = sequencedRef.current?.api;
+                if (currentId && api?.isInitialized?.()) {
+                  try {
+                    savedCmi.current.set(currentId, api.renderCMIToJSONObject());
+                    setCourse((current) =>
+                      current && current.id === course.id
+                        ? withRememberedAttempt(
+                            current,
+                            currentId,
+                            savedCmi.current.get(currentId)!,
+                          )
+                        : current,
+                    );
+                  } catch {
+                    /* ignore */
+                  }
+                }
+                sequencedRef.current?.suspendAndPersist();
+              }
+              navigate("/");
+            }}
+          >
             Exit
           </button>
           {!nav.hideContinue ? (
@@ -426,6 +529,7 @@ export function PlayerView({ courseId, itemId }: { courseId: string; itemId: str
               disabled={!nextEnabled}
               onClick={() => {
                 if (sequenced) {
+                  if (!currentDone) return;
                   sequencedRef.current?.navigate("continue");
                   return;
                 }
@@ -503,9 +607,10 @@ function successFor(course: Course, itemId: string): "passed" | "failed" | null 
 
 function courseProgress(course: Course, currentId: string, currentCompletion: string): number {
   if (course.items.length === 0) return 0;
-  const fraction = course.items.reduce((sum, item) => {
-    const completion = item.id === currentId ? currentCompletion : completionFor(course, item.id);
-    if (completion === "completed") return sum + 1;
+  const fraction = course.items.reduce((sum, entry) => {
+    const completion = entry.id === currentId ? currentCompletion : completionFor(course, entry.id);
+    const success = successFor(course, entry.id);
+    if (completion === "completed" || success === "passed") return sum + 1;
     if (completion === "incomplete" || completion === "browsed") return sum + 0.45;
     return sum;
   }, 0);

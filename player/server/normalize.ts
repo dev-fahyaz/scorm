@@ -34,10 +34,40 @@ function numberOrNull(value: unknown): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function looksLikeCmi(value: Record<string, unknown>): boolean {
+  return (
+    "completion_status" in value ||
+    "success_status" in value ||
+    "core" in value ||
+    "suspend_data" in value ||
+    "location" in value ||
+    "learner_id" in value ||
+    "session_time" in value ||
+    "progress_measure" in value ||
+    "score" in value
+  );
+}
+
+/**
+ * Extract leaf CMI from a flat `{ cmi }` payload or a structured CommitObject
+ * (`runtimeData.cmi`) used when renderCommonCommitFields is enabled.
+ */
 export function cmiOf(commit: unknown): Record<string, unknown> {
   const root = asRecord(commit);
+  const fromRuntime = asRecord(asRecord(root.runtimeData).cmi);
+  if (Object.keys(fromRuntime).length > 0) return fromRuntime;
+
+  const runtime = asRecord(root.runtimeData);
+  if (Object.keys(runtime).length > 0 && looksLikeCmi(runtime)) return runtime;
+
   const nested = asRecord(root.cmi);
-  return Object.keys(nested).length > 0 ? nested : root;
+  if (Object.keys(nested).length > 0) return nested;
+
+  // Avoid treating a structured CommitObject envelope as CMI.
+  if ("runtimeData" in root || "activityId" in root || "completionStatus" in root) {
+    return {};
+  }
+  return root;
 }
 
 export function parseScorm12Time(value: string): number {

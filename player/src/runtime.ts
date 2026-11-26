@@ -43,17 +43,21 @@ export type SequencedRuntime = {
   setDeliveredItem: (itemId: string) => void;
   start: () => Promise<void>;
   navigate: (request: "continue" | "previous" | "exitAll" | "suspendAll") => boolean;
+  choose: (activityId: string) => boolean;
+  suspendAndPersist: () => void;
   destroy: () => void;
 };
 
 type DeliveryHooks = {
   beforeReset?: () => void;
+  forceReset?: boolean;
 };
 
 export function attachSequencedRuntime(
   course: Course,
   options: {
     getLaunchUrl: (itemId: string, href: string) => string;
+    getSavedCmi?: (itemId: string) => Record<string, unknown> | null | undefined;
     onDelivery: (itemId: string, title: string, launchUrl: string) => void;
     onNavigation: (state: {
       canPrevious: boolean;
@@ -122,16 +126,22 @@ export function attachSequencedRuntime(
   }
   window.API_1484_11 = api;
 
-  const publishNavigation = (data?: {
-    continue?: boolean;
-    previous?: boolean;
-    hideLmsUi?: string[];
-  }) => {
-    // Host Continue/Previous must match previewNavigationRequest — engine
-    // continue flags can be optimistic while flow/preconditions still block.
+  const seedCmi = (itemId: string) => {
+    const saved = options.getSavedCmi?.(itemId);
+    if (!saved) return;
+    try {
+      api.loadFromJSON(cmiForResume(saved, "2004"));
+    } catch {
+      /* ignore bad snapshots */
+    }
+  };
+
+  const publishNavigation = (data?: { hideLmsUi?: string[] }) => {
     const cont = api.previewNavigationRequest?.("continue");
     const prev = api.previewNavigationRequest?.("previous");
     const hide = data?.hideLmsUi ?? [];
+    // Strict: only enable when preview is firmly allowed. Never use optimistic
+    // adl.nav.request_valid.continue while preview is unknown (that skipped lessons).
     options.onNavigation({
       canPrevious: prev?.outcome === "allowed",
       canNext: cont?.outcome === "allowed",
@@ -147,12 +157,16 @@ export function attachSequencedRuntime(
     const item = course.items.find((entry) => entry.id === activity.id);
     const launchUrl = launchById.get(activity.id) || "";
     const switching = Boolean(lastDeliveredId && lastDeliveredId !== activity.id);
-    if (switching) {
+    const shouldReset = hooks.forceReset || switching;
+    if (shouldReset) {
       hooks.beforeReset?.();
       options.beforeActivityReset?.();
       if (typeof api.reset === "function") {
         api.reset({ preserveListeners: true });
       }
+      seedCmi(activity.id);
+    } else if (!lastDeliveredId) {
+      seedCmi(activity.id);
     }
     lastDeliveredId = activity.id;
     deliveredItemId = activity.id;
@@ -166,7 +180,7 @@ export function attachSequencedRuntime(
       const overall = service?.getOverallSequencingProcess?.();
       overall?.updateNavigationValidity?.();
     } catch {
-      /* preview fallback below */
+      /* preview below */
     }
     publishNavigation();
   };
@@ -188,6 +202,104 @@ export function attachSequencedRuntime(
       options.onSessionEnd?.(data.reason);
     },
   });
+
+  api.on("Initialize", () => {
+    refreshValidity();
+  });
+  api.on("Commit", () => {
+    refreshValidity();
+  });
+  api.on("CommitSuccess", () => {
+    refreshValidity();
+  });
+  api.on("SetValue", (CMIElement: string) => {
+    if (
+      CMIElement === "cmi.completion_status" ||
+      CMIElement === "cmi.success_status" ||
+      CMIElement === "cmi.score.raw" ||
+      CMIElement === "cmi.score.scaled"
+    ) {
+      refreshValidity();
+    }
+  });
+
+  const softRecoverSame = (beforeId: string | null) => {
+    if (lastDeliveredId === beforeId && beforeId && !api.isInitialized?.()) {
+      const item = course.items.find((entry) => entry.id === beforeId);
+      deliverActivity(
+        { id: beforeId, title: item?.title },
+        { forceReset: true, beforeReset: () => options.beforeActivityReset?.() },
+      );
+    }
+  };
+
+  const runFlowNav = (request: "continue" | "previous"): boolean => {
+    const preview = api.previewNavigationRequest?.(request);
+    if (preview?.outcome === "blocked") {
+      refreshValidity();
+      return false;
+    }
+
+    const beforeId = lastDeliveredId;
+    if (api.isInitialized?.()) {
+      try {
+        api.SetValue("adl.nav.request", `_${request}`);
+        api.Commit("");
+        api.Terminate("");
+      } catch {
+        /* fall through */
+      }
+    }
+
+    if (lastDeliveredId === beforeId && !api.isInitialized?.()) {
+      api.processNavigationRequest(request);
+    }
+
+    softRecoverSame(beforeId);
+    refreshValidity();
+    return lastDeliveredId !== beforeId;
+  };
+
+  const choose = (activityId: string): boolean => {
+    if (!activityId || activityId === lastDeliveredId) {
+      refreshValidity();
+      return false;
+    }
+
+    const beforeId = lastDeliveredId;
+    if (api.isInitialized?.()) {
+      try {
+        api.SetValue("adl.nav.request", `{target=${activityId}}choice`);
+        api.Commit("");
+        api.Terminate("");
+      } catch {
+        /* fall through */
+      }
+    }
+
+    if (lastDeliveredId === beforeId && !api.isInitialized?.()) {
+      api.processNavigationRequest("choice", activityId);
+    }
+
+    softRecoverSame(beforeId);
+    refreshValidity();
+    return lastDeliveredId !== beforeId;
+  };
+
+  const suspendAndPersist = () => {
+    try {
+      if (api.isInitialized?.()) {
+        api.SetValue("cmi.exit", "suspend");
+        api.SetValue("adl.nav.request", "suspendAll");
+        api.Commit("");
+        api.Terminate("");
+      } else if (!api.isTerminated?.()) {
+        api.processNavigationRequest("suspendAll");
+      }
+    } catch {
+      /* best-effort suspend */
+    }
+  };
 
   return {
     api,
@@ -214,8 +326,7 @@ export function attachSequencedRuntime(
       }
 
       if (current?.id) {
-        // Restored session: re-deliver current SCO. Do not call start (NB.2.1-1).
-        deliverActivity(current, {});
+        deliverActivity(current, { forceReset: true });
         refreshValidity();
         return;
       }
@@ -225,50 +336,14 @@ export function attachSequencedRuntime(
     },
     navigate: (request) => {
       if (request === "continue" || request === "previous") {
-        const preview = api.previewNavigationRequest?.(request);
-        if (preview?.outcome === "blocked") {
-          refreshValidity();
-          return false;
-        }
-
-        const beforeId = lastDeliveredId;
-        if (api.isInitialized?.()) {
-          try {
-            api.SetValue("adl.nav.request", `_${request}`);
-            api.Commit("");
-            api.Terminate("");
-          } catch {
-            /* fall through to processNavigationRequest */
-          }
-        }
-
-        // If Terminate did not deliver a new activity, ask the sequencer (or restore).
-        if (lastDeliveredId === beforeId) {
-          if (!api.isInitialized?.()) {
-            api.processNavigationRequest(request);
-          }
-        }
-
-        // Failed continue must not leave a terminated API with a live iframe.
-        if (lastDeliveredId === beforeId && beforeId) {
-          const item = course.items.find((entry) => entry.id === beforeId);
-          options.beforeActivityReset?.();
-          if (typeof api.reset === "function") {
-            api.reset({ preserveListeners: true });
-          }
-          deliverActivity(
-            { id: beforeId, title: item?.title },
-            {},
-          );
-        }
-
-        refreshValidity();
-        return lastDeliveredId !== beforeId;
+        return runFlowNav(request);
       }
       const ok = api.processNavigationRequest(request);
       refreshValidity();
       return ok;
     },
+    choose,
+    suspendAndPersist,
     destroy: () => {
       clearRuntimes();
     },
